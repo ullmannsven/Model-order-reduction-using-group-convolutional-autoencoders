@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.build/
+dist/
+.env
+.ma_venv
+venv/
+pip-wheel-metadata/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# IDE / editors
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs / cache
+logs/
+*.log
+.cache/
+wandb/
+mlruns/
+
+# Data / models (adjust as needed)
+data/
+datasets/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Build artifacts
+*.so
+*.dll
+
+# PyTest / coverage
+.pytest_cache/
+.coverage
+htmlcov/

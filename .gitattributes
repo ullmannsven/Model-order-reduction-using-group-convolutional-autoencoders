@@ -1,0 +1,7 @@
+/tests/wave/mor_results/approx_full_deep_galerkin_p_16 filter=lfs diff=lfs merge=lfs -text
+/tests/wave/snapshots_grid/snapshots_256x256_sigpre_050_3_0_nt_1000_every_10_ts filter=lfs diff=lfs merge=lfs -text
+/tests/wave/snapshots_grid/snapshots_256x256_sigpre_050_3_0_nt_1000_every_5_ts filter=lfs diff=lfs merge=lfs -text
+/tests/wave/snapshots_grid/snapshots_256x256_sigpre_050_3_1_nt_1000_every_10_ts filter=lfs diff=lfs merge=lfs -text
+/tests/wave/snapshots_grid/snapshots_256x256_sigpre_050_3_1_nt_1000_every_5_ts filter=lfs diff=lfs merge=lfs -text
+/tests/wave/snapshots_grid/snapshots_256x256_sigpre_050_3_2_nt_1000_every_10_ts filter=lfs diff=lfs merge=lfs -text
+/tests/wave/snapshots_grid/snapshots_256x256_sigpre_050_3_2_nt_1000_every_5_ts filter=lfs diff=lfs merge=lfs -text
