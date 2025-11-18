@@ -12,11 +12,12 @@ from torchpdes.models.instationary.pod_lspg_utilities_IMR import POD_LSPG_quasi_
 from experiment_setup import WaveExperimentConfig, WaveExperiment
 
 
-def test_wave_2D(): 
+def test_wave_2D():
 
     # Configure experiment
-    config = WaveExperimentConfig(p_red=30)
+    config = WaveExperimentConfig()
     experiment = WaveExperiment(config)
+    p_red = 12
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     rb_dir = os.path.join(script_dir, "pod_results")
@@ -37,9 +38,9 @@ def test_wave_2D():
     u_test = np.vstack(arr).T
 
 
-    rb_path = rb_dir / f"reduced_basis_{config.Nx}x{config.Ny}_sigpre_{config.sig_pre}_rbsize_30_nt_{config.nt}_every_{config.timestep_factor}_ts.npy"
+    rb_path = rb_dir / f"reduced_basis_{config.Nx}x{config.Ny}_sigpre_{config.sig_pre}_rbsize_20_nt_{config.nt}_every_{config.timestep_factor}_ts.npy"
     reduced_basis_all = np.load(rb_path)
-    reduced_basis = reduced_basis_all[:, :config.p_red]
+    reduced_basis = reduced_basis_all[:, :p_red]
 
     #This is not doing anything, just to keep it aligned with the AE version
     zero_vec = np.zeros(2*config.Nx*config.Ny)
@@ -72,7 +73,7 @@ def test_wave_2D():
         print(f"Step took {time.time()-tic}")
 
     # Save results
-    result_file = filepaths['mor_results'] / f'approx_full_pod_lspg_p_{config.p_red}'
+    result_file = filepaths['mor_results'] / f'approx_full_pod_lspg_p_{p_red}'
     with result_file.open('wb') as f:
         pickle.dump({'mu': mu_test, 'u_pod_lspg': u_approx_full, 'u_full': u_test}, f)
     
@@ -90,7 +91,7 @@ def test_wave_2D():
     # Save error to file
     error_file = filepaths['mor_results'] / "test_relative_errors_wave.txt"
     with error_file.open("a") as f:
-        f.write(f"POD_LSPG\t{config.p_red}\t{mu_test_val}\t{metrics['relative_error_total']}\n")
+        f.write(f"POD_LSPG\t{p_red}\t{mu_test_val}\t{metrics['relative_error_total']}\n")
 
 
 if __name__ == '__main__':

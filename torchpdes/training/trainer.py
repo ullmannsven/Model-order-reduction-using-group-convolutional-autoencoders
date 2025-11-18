@@ -185,6 +185,7 @@ class Trainer:
             w = 2.0 * w / w.sum()
             return self.weighted_mse(outputs, targets, w)
         
+        #TODO this is outdated and done more efficient on the server
         elif self.loss_mode == "symplectic":
             data_loss = self.model.loss_function(outputs, targets)
             sum_part = 0.0

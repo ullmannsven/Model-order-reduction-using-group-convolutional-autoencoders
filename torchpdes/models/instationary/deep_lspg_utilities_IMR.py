@@ -8,23 +8,22 @@ from pymor.vectorarrays.numpy import NumpyVectorSpace
 
 def LSPG_residuum(model, x, xn_1, mu, dt, fom):
     """Computes the manifold LSPG residual when using implicit midpoint rule as time stepping scheme."""
-    x_mid = 0.5 * (x + xn_1) #already high dimensional in this case
+    #already high dimensional in this case
+    x_mid = 0.5 * (x + xn_1)
 
     x_mid_1, x_mid_2 = np.split(x_mid, [int(x_mid.shape[0]/2)])
     
     space = NumpyVectorSpace(model.dims[1]*model.dims[2])
     temp_mid = fom.operator.source.make_array([space.from_numpy(x_mid_1), space.from_numpy(x_mid_2)])
 
-    # compute right hand side
     rhs = (-1) * fom.operator.apply(temp_mid, mu).to_numpy().reshape(-1,1)
-    # apply inverse of mass matrix to right hand side
-    #rhs = np.linalg.solve(fom.mass.matrix.array(), rhs.to_numpy().transpose())
     return x - xn_1 - dt * rhs
 
 
 def Psi_matrix(model, x, xn_1, mu, dt, fom, u_ref, scaled_data):
     """Computes Petrov-Galerkin test matrix Psi."""
     jac = get_jacobian(model.network.decoder, x, model, scaled_data).detach().numpy()
+
     decoded = apply_decoder(x, model, scaled_data)
     decoded_xn = apply_decoder(xn_1, model, scaled_data)
 
@@ -48,7 +47,7 @@ def Psi_matrix(model, x, xn_1, mu, dt, fom, u_ref, scaled_data):
     
 
 
-def LSPG_line_search(model, x, p, xn_1, mu, dt, fom, u_ref, scaled_data, min_stepsize=5e-2, frac=0.5, c_1=1e-4, c_2=0.9):
+def LSPG_line_search(model, x, p, xn_1, mu, dt, fom, u_ref, scaled_data, min_stepsize=5e-2, frac=0.9, c_1=1e-4, c_2=0.9):
     """Performs line search according to Strong Wolfe conditions."""
     # initialize step size
     alpha = 1.0
@@ -104,7 +103,6 @@ def LSPG_quasi_newton(model, xn_1, mu, dt, fom, u_ref, scaled_data, tol=1e-7, ma
 
     step = 0
     p = [2*tol]
-    lambda_reg = 0
     # perform Quasi-Newton steps until norm of the residual has reached prescribed tolerance
     #not (np.linalg.norm(p) < tol)
     while (res_norm > tol and not (step >= max_steps)):
@@ -122,4 +120,3 @@ def LSPG_quasi_newton(model, xn_1, mu, dt, fom, u_ref, scaled_data, tol=1e-7, ma
         print(f'Step: {step} Residual norm: {res_norm}')
 
     return x_new
-

@@ -1,55 +1,46 @@
 #!/usr/bin/env python
 
-"""Test for 1D Burgers type equation with POD-Galerkin method.
-
-Usage:
-    burgers_test_pod_galerkin.py
-
-Options:
-    -h, --help   Show this message.
-"""
-
 import numpy as np
 import pickle
 
 from pymor.basic import *
-from torchpdes.pdes.instationary import wave_2D
 import os
 from pathlib import Path
+
+from experiment_setup import WaveExperiment, WaveExperimentConfig
 
 
 def test_pod_galerkin():
  
+    # Configure experiment
+    config = WaveExperimentConfig(x_flow=True)
+    experiment = WaveExperiment(config)
+   
+    timestep_factor = config.timestep_factor
+    Nx = config.Nx
+    Ny = config.Ny
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     script_dir = Path(script_dir)
-   
-    Nx = 256
-    Ny = 256
-    sig_pre = 0.5
-    sig_pre_tag = f"{sig_pre:.2f}".replace('.', '')
-    x_flow = True
     
-    T = 1
-    nt = 1000
-    timestep_factor = 5
-    dims = (2, Nx, Ny)
+    mu_val = 1
+    mu_test = experiment.fom.parameters.parse({'mu': mu_val})
+    filepaths = experiment.get_filepath_patterns(script_dir)
+    filename = filepaths['snapshots'] / "snapshots_256x256_sigpre_050_5_2_nt_1000_every_5_ts"
+    with open(filename, 'rb') as f:
+        arr = pickle.load(f)['snapshots']
 
-    fom = wave_2D(T=T, Nx=Nx, Ny=Ny, nt=nt, sig_pre=sig_pre, x_flow=x_flow)
-    
-    mu_test_val = 1.25
-    mu_test = fom.parameters.parse({'mu': mu_test_val})
-    print(f'Solving for test parameter = {mu_test} ... ')
-    u_test = fom.solve(mu_test)
-    print("done with FOM solve")
+    u_test = np.vstack(arr).T
 
     base_dir = os.path.join(script_dir, "snapshots_grid")
     os.makedirs(base_dir, exist_ok=True)
 
     number_of_snapshots = 3
+    sig_pre_tag = f"{config.sig_pre:.2f}".replace('.', '')
 
     arrays = []
     for i in range(number_of_snapshots):
-        filename = os.path.join(base_dir, f'snapshots_{Nx}x{Ny}_sigpre_{sig_pre_tag}_{number_of_snapshots}_{i}_nt_{nt}_every_{timestep_factor}_ts')
+        filename = os.path.join(base_dir, f'snapshots_{Nx}x{Ny}_sigpre_{sig_pre_tag}_{number_of_snapshots}_{i}_nt_{config.nt}_every_{timestep_factor}_ts')
         with open(filename, 'rb') as f:
             arr = pickle.load(f)['snapshots']
         arrays.append(arr)
@@ -77,15 +68,15 @@ def test_pod_galerkin():
     q_flat_scaled = snapshots_np[:, 0, :, :].reshape(T_total, Nx*Ny)
     p_flat_scaled = snapshots_np[:, 1, :, :].reshape(T_total, Nx*Ny)
  
-    U = fom.solution_space.empty()
+    U = experiment.fom.solution_space.empty()
 
     for i in range(T_total):
-        U.append(fom.operator.source.make_array([space.from_numpy(q_flat_scaled[i, :]), space.from_numpy(p_flat_scaled[i, :])]))
+        U.append(experiment.fom.operator.source.make_array([space.from_numpy(q_flat_scaled[i, :]), space.from_numpy(p_flat_scaled[i, :])]))
 
     proj_errors = []
 
     # compute reduced basis
-    reduced_basis, _ = pod(U, modes=30)
+    reduced_basis, _ = pod(U, modes=20)
     print("done computing the POD")
     reduced_basis_all = reduced_basis.to_numpy()
 
@@ -94,27 +85,29 @@ def test_pod_galerkin():
     rb_dir = Path(rb_dir)
     os.makedirs(rb_dir, exist_ok=True)
 
-    rb_path = rb_dir / f"reduced_basis_{Nx}x{Ny}_sigpre_{sig_pre}_rbsize_{reduced_basis_all.shape[1]}_nt_{nt}_every_{timestep_factor}_ts.npy"
+    rb_path = rb_dir / f"reduced_basis_{Nx}x{Ny}_sigpre_{config.sig_pre}_rbsize_{reduced_basis_all.shape[1]}_nt_{config.nt}_every_{timestep_factor}_ts.npy"
     np.save(rb_path, reduced_basis_all)
 
     # compute projection error for different RB sizes
-    for j in [8, 16, 24]:
+    amount_of_iters = int(config.nt/timestep_factor)
+    errors = np.zeros((amount_of_iters, 1))
+    errors_den = np.zeros((amount_of_iters, 1))
+    
+    for j in [4, 8, 12, 16, 20]:
         reduced_basis = reduced_basis_all[:, :j]
-        amount_of_iters = int(nt/timestep_factor)
-        errors = np.zeros((amount_of_iters, 1))
-        errors_den = np.zeros((amount_of_iters, 1))
+       
         for i in range(amount_of_iters):
-            sol_rot_unscaled = u_test.to_numpy()[:, timestep_factor*i] - u_test.to_numpy()[:, 0]
+            sol_rot_unscaled = u_test[:, i]
             sol_rot_unscaled_enc = reduced_basis.T @ sol_rot_unscaled
             sol_rot_unscaled_dec = reduced_basis @ sol_rot_unscaled_enc
             errors[i, 0] = np.linalg.norm(sol_rot_unscaled_dec.reshape(-1,1) - sol_rot_unscaled.reshape(-1,1))**2
-            errors_den[i, 0] = np.linalg.norm(u_test.to_numpy()[:, timestep_factor*i])**2
+            errors_den[i, 0] = np.linalg.norm(u_test[:, i])**2
 
         proj_errors.append((j, np.sqrt(np.sum(errors, axis=0) / np.sum(errors_den, axis=0))))
 
     pod_results_dir = os.path.join(script_dir, "pod_results")
     pod_results_dir = Path(pod_results_dir)
-    pod_results_file = pod_results_dir / f"proj_error_{Nx}x{Ny}_noscale_norot_mu_{mu_test_val}_nt_{nt}_every_{timestep_factor}_ts.pkl"
+    pod_results_file = pod_results_dir / f"proj_error_{Nx}x{Ny}_mu_{mu_val}_nt_{config.nt}_every_{timestep_factor}_ts.pkl"
 
     with pod_results_file.open("wb") as f:
         pickle.dump(proj_errors, f)

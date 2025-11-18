@@ -15,7 +15,7 @@ class Scaler:
         self.Nx = dims[1]
         self.Ny = dims[2]
 
-        with open(f'{filename}_{self.Nx}x{self.Ny}', "rb") as f:
+        with open(f'{filename}_{self.Nx}x{self.Ny}_3snapshots', "rb") as f:
             scaling = pickle.load(f)
 
         self.min_q = scaling["min"]["q"]
@@ -27,9 +27,12 @@ class Scaler:
         self.range_q = self.max_q - self.min_q + self.eps
         self.range_p = self.max_p - self.min_p + self.eps
 
-    # -------------------
-    # scaling operations
-    # -------------------
+        # self.mean_q = scaling["mean"]["q"]
+        # self.mean_p = scaling["mean"]["p"]
+        # self.std_q = scaling["std"]["q"] + eps
+        # self.std_p = scaling["std"]["p"] + eps
+
+
     def scale(self, x):
         """Scale physical (q, p) data to [0, 1]."""
         #scaled = torch.empty_like(x, dtype=torch.double)
@@ -45,6 +48,8 @@ class Scaler:
         else: 
             raise NotImplementedError
         return scaled
+
+
 
     def unscale(self, x):
         """Unscale from [0, 1] back to physical (q, p)."""
@@ -62,9 +67,7 @@ class Scaler:
             raise NotImplementedError
         return unscaled
 
-    # -------------------
-    # derivative handling
-    # -------------------
+  
     def unscale_and_prolongate_derivative(self, J):
         """
         Rescale Jacobian J according to physical units.
@@ -88,7 +91,8 @@ class Scaler:
                               dtype=J.dtype, device=J.device).view(C, 1, 1, 1)
         J = J * scales
         return J.view(C * H * W, L)
-    
+
+
     def prolongate_derivative(self, J):
         """
         Rescale Jacobian J according to physical units.
@@ -109,10 +113,6 @@ class Scaler:
 
         return J.view(C * H * W, L)
 
-     
-    # -------------------
-    # reshaping helpers
-    # -------------------
     def restrict(self, x):
         """Reshape vector to (C, H, W)."""
         return x.reshape(self.dims[0], self.dims[1], self.dims[2])

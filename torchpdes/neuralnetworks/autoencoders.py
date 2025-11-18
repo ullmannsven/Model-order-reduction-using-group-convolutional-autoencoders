@@ -871,7 +871,7 @@ class RotationGCNNAutoencoder2D(nn.Module):
                         in_type  = FieldType(self.gspace, encoder_channels[i-1] * [self.gspace.regular_repr])
                         out_type = FieldType(self.gspace, encoder_channels[i] * [self.gspace.regular_repr])
                     
-                    self.conv_layers.extend([R2Conv(in_type, out_type, kernel_size=k, padding=p, stride=s, padding_mode='circular', bias=False)]) #TODO padding_mode='circular'
+                    self.conv_layers.extend([R2Conv(in_type, out_type, kernel_size=k, padding=p, stride=s, padding_mode='circular', bias=False)])
                     self.conv_layers.extend([self.activation_function(out_type, inplace=False)])
 
                     # track spatial size
@@ -1182,7 +1182,7 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
                         in_type  = FieldType(self.gspace, encoder_channels[i-1] * [self.gspace.regular_repr])
                         out_type = FieldType(self.gspace, encoder_channels[i] * [self.gspace.regular_repr])
                     
-                    self.conv_layers.extend([R2Conv(in_type, out_type, kernel_size=k, padding=p, stride=s, padding_mode='circular', bias=False)])
+                    self.conv_layers.extend([R2Conv(in_type, out_type, kernel_size=k, padding=p, stride=s, padding_mode='circular', bias=True)])
                     self.conv_layers.extend([self.activation_function(out_type, inplace=False)])
 
                     # track spatial size
@@ -1193,7 +1193,7 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
                 self.global_in_type = out_type
                 self.global_out_type = FieldType(self.gspace, outer.encoder_channels[-1] * [self.gspace.regular_repr])
 
-                self.dec_first = R2Conv(self.global_in_type, self.global_out_type, kernel_size=self.H, stride=1, padding=0, bias=False)
+                self.dec_first = R2Conv(self.global_in_type, self.global_out_type, kernel_size=self.H, stride=1, padding=0, bias=True)
                 self.dec_first_act = activation_function(self.dec_first.out_type, inplace=False)
 
                 C_enc = outer.encoder_channels[-1]
@@ -1268,7 +1268,7 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
                                             stride=1,
                                             padding=0, 
                                             output_padding=0, 
-                                            bias=False)
+                                            bias=True)
                 
                 self.dec_first_act = self.activation_function(self.dec_first.out_type, inplace=False)
                 
@@ -1286,7 +1286,7 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
                         out_t = FieldType(self.gspace, outer.decoder_channels[i+1] * [self.gspace.regular_repr])
 
                     self.conv_layers.extend([R2Upsampling(in_t, scale_factor=s)])
-                    self.conv_layers.extend([R2Conv(in_t, out_t, kernel_size=k, padding=p, stride=1, padding_mode='circular', bias=False)])
+                    self.conv_layers.extend([R2Conv(in_t, out_t, kernel_size=k, padding=p, stride=1, padding_mode='circular', bias=True)])
 
                     if i != outer.number_of_convolutional_layers_decoder - 1:
                         self.conv_layers.extend([self.activation_function(out_t, inplace=False)])

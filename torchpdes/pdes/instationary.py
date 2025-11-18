@@ -24,7 +24,7 @@ from pymor.parameters.functionals import ExpressionParameterFunctional
 
 
 
-def wave_2D(T=1, Nx=101, Ny=101, nt=1000, sig_pre=None, x_flow=True):
+def wave_2D(T=1, Nx=101, Ny=101, nt=1000, sig_pre=None, x_flow=True, visualize_q=True):
     """ discrezized linear wave equation in 2D posed on [0,1]^2 as a Hamiltonian system
 
     Parameters
@@ -157,8 +157,29 @@ def wave_2D(T=1, Nx=101, Ny=101, nt=1000, sig_pre=None, x_flow=True):
 
             return self.base.visualize(data, **kwargs)
         
+    class PBlockVisualizer:
+        """Adapter that visualizes only the p-block of a (q,p) state on a RectGrid."""
+        def __init__(self, Nx, Ny):
+            self.Nx = Nx
+            self.Ny = Ny
+            self.grid = RectGrid(domain=([0,0], [1,1]), num_intervals=(Nx-1, Ny-1))
+            self.base = PatchVisualizer(grid=self.grid, codim=2)
+            self.scalar_space = NumpyVectorSpace(Nx*Ny)
+
+        def visualize(self, U, **kwargs):
+            data = self.scalar_space.empty()
+            for i in range(len(U)):
+                ui = U[i].to_numpy()
+                p_flat = ui[self.Nx * self.Ny :]  # p comes after q
+                data.append(self.scalar_space.from_numpy(p_flat))
+
+            return self.base.visualize(data, **kwargs)
+        
     # build the Hamiltonian model
     nt = int(T * nt)
-    model = QuadraticHamiltonianModel(T=T, initial_data=u0, H_op=H_op, visualizer=QBlockVisualizer(Nx=Nx, Ny=Ny), nt=nt, name='2D wave')
+    if visualize_q:
+        model = QuadraticHamiltonianModel(T=T, initial_data=u0, H_op=H_op, visualizer=QBlockVisualizer(Nx=Nx, Ny=Ny), nt=nt, name='2D wave')
+    else: 
+        model = QuadraticHamiltonianModel(T=T, initial_data=u0, H_op=H_op, visualizer=PBlockVisualizer(Nx=Nx, Ny=Ny), nt=nt, name='2D wave')
 
     return model

@@ -33,10 +33,8 @@ class WaveExperimentConfig:
     
     # Direction of flow
     x_flow: bool = True
-    
-    # Reduced basis size
-    p_red: int = 16
-    
+    visualize_q: bool = True
+      
     @property
     def hx(self):
         """Grid spacing in x-direction."""
@@ -80,17 +78,12 @@ class WaveExperiment:
         """
         self.config = config
         self._fom = None
-        self._mu_test = None
-        self._initial_condition = None
-        self._u_ref = None
     
     @property
     def fom(self):
-        """Get or create the full order model."""
-        if self._fom is None:
-            self._fom = wave_2D(T=self.config.T, Nx=self.config.Nx, Ny=self.config.Ny, sig_pre=self.config.sig_pre, nt=self.config.nt, x_flow=self.config.x_flow)
-        return self._fom
-    
+        """Create the full order model."""
+        return wave_2D(T=self.config.T, Nx=self.config.Nx, Ny=self.config.Ny, sig_pre=self.config.sig_pre, nt=self.config.nt, x_flow=self.config.x_flow, visualize_q=self.config.visualize_q)
+        
     # @property
     # def mu_test(self):
     #     """Get or create the test parameter."""
@@ -115,9 +108,11 @@ class WaveExperiment:
     def compute_derivative(self, Q, direction):
         """Compute spatial derivative with appropriate boundary conditions.
         
-        Args:
-            Q: Array of shape (Ny, Nx) containing field values.
-            direction: 'x_flow' or 'y_flow' for derivative direction.
+        Parameters:
+            Q: 
+                Array of shape (Ny, Nx) containing field values.
+            direction: 
+                'x_flow' or 'y_flow' for derivative direction.
             
         Returns:
             Derivative array of same shape as Q.
@@ -147,10 +142,7 @@ class WaveExperiment:
         
         Returns:
             Tuple of (q0_flat, p0_flat) as 1D arrays.
-        """
-        if self._initial_condition is not None:
-            return self._initial_condition
-        
+        """ 
         x, y = self.get_grid()
         X, Y = np.meshgrid(x, y, indexing='xy')
         
@@ -171,10 +163,9 @@ class WaveExperiment:
             dqdy_flat = dqdy_mat.ravel()
             p0_flat = - mu_val * dqdy_flat
         
-        self._initial_condition = (q0_flat, p0_flat)
-        return self._initial_condition
+        return (q0_flat, p0_flat)
     
-    def get_initial_state(self, mu_val=None):
+    def get_initial_state(self, mu_val):
         """Get full initial state as concatenated array.
         
         Returns:
@@ -183,7 +174,7 @@ class WaveExperiment:
         q0, p0 = self._get_initial_condition(mu_val=mu_val)
         return np.hstack((q0, p0)).reshape(-1, 1)
     
-    def compute_reference_offset(self, model, mu_val, scaled_data, zero_state=None):
+    def compute_reference_offset(self, model, mu_val, scaled_data):
         """Compute reference offset u_ref = u_0 - decoder(encoder(0)).
         
         Args:
@@ -193,9 +184,8 @@ class WaveExperiment:
         Returns:
             Reference offset as array of shape (2*Nx*Ny, 1).
         """
-        
-        if zero_state is None:
-            zero_state = np.zeros(2 * self.config.Nx * self.config.Ny)
+
+        zero_state = np.zeros(2 * self.config.Nx * self.config.Ny)
         
         # Encode and decode zero state
         if scaled_data:
@@ -212,9 +202,9 @@ class WaveExperiment:
         
         # Compute reference offset
         initial_state = self.get_initial_state(mu_val=mu_val)
-        self._u_ref = initial_state - decoded_u_0_hat
+        u_ref = initial_state - decoded_u_0_hat
         
-        return self._u_ref, u_0_hat
+        return u_ref, u_0_hat
     
     def solve_fom(self, mu):
         """Solve the full order model.

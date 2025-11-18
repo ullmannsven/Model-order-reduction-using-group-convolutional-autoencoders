@@ -72,11 +72,25 @@ def train_wave_2D(p_red):
             'shape': {'Nx': Nx, 'Ny': Ny}
         }, f)
 
+    # q_mean = snapshots_np[:, 0, :, :].mean()
+    # q_std = snapshots_np[:, 0, :, :].std()
+    # p_mean = snapshots_np[:, 1, :, :].mean()
+    # p_std = snapshots_np[:, 1, :, :].std()
+
+    # scaling_filename = os.path.join(script_dir, f"scaling_grid_{Nx}x{Ny}_mean_variance")
+    # with open(scaling_filename, 'wb') as f:
+    #     pickle.dump({
+    #         'mean': {'q': float(q_mean), 'p': float(p_mean)},
+    #         'std': {'q': float(q_std), 'p': float(p_std)},
+    #         'shape': {'Nx': Nx, 'Ny': Ny}
+    #     }, f)
+
     scaler = Scaler(dims=dims)
 
     # Apply scaling: (x - min) / (max - min) for both q and p values
     # TODO i should use the scale method here?
-    snapshots_scaled = snapshots_np.copy()
+    #snapshots_scaled = snapshots_np.copy()
+    snapshots_scaled = scaler.scale(snapshots_np)
     #snapshots_scaled[:, 0, :, :] = (snapshots_np[:, 0, :, :] - q_min) / (q_max - q_min + eps)
     #snapshots_scaled[:, 1, :, :] = (snapshots_np[:, 1, :, :] - p_min) / (p_max - p_min + eps)
 

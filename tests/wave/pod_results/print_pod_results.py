@@ -29,7 +29,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 
-def load_xy_from_pickle(path: str) -> Tuple[np.ndarray, np.ndarray]:
+def load_xy_from_pickle(path):
     """Load a list of (x, y) pairs from a pickle file and return as numpy arrays."""
     with open(path, "rb") as f:
         data = pickle.load(f)
