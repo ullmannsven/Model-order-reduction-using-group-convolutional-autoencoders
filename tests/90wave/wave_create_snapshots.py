@@ -18,7 +18,7 @@ def create_snapshots():
         solution = experiment.fom.solve(mu)
         print(f'{i}: {mu_val}')
         solution_mat = solution.to_numpy()
-            # solution at first timestep
+        # solution at first timestep
         solution_0 = solution_mat[:, 0]
 
         for j in range(config.nt):
@@ -30,9 +30,6 @@ def create_snapshots():
         with open(filename, 'wb') as file_obj:
             pickle.dump({'snapshots': data_tmp}, file_obj)
         data_tmp = []
-
-    # as inituition, visualize the solution for the last mu
-    #experiment.fom.visualize(solution)
 
 if __name__ == '__main__':
     tic = time.time()

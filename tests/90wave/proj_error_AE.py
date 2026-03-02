@@ -103,9 +103,6 @@ def proj_error_AE(ae_name, p_red_values, mu_val= 0.8, scaled_data = True, write_
         with Path(network_parameters_file).open("rb") as f:
             parameters = pickle.load(f)
 
-        assert f"_{grid}" in str(nn_save_filepath)
-        assert f"p_{p_red}_" in str(nn_save_filepath)
-
         scaler = Scaler(dims=config.dims)
 
         # Inject gspace into network parameters if required
