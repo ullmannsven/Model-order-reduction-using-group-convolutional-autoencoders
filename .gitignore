@@ -31,9 +31,7 @@ wandb/
 mlruns/
 
 # Data / models (adjust as needed)
-data/
-datasets/
-checkpoints/
+
 snapshots_grid/
 GCNN_tests/
 new_wave/
@@ -46,9 +44,6 @@ deep_galerkin_utilities_bdf.py
 pod_galerkin_utilities_BDF.py
 pod_galerkin_utilities_IMR.py 
 pod_lspg_utilities_IMR.py
-*.pt
-*.pth
-*.ckpt
 
 # Build artifacts
 *.so
