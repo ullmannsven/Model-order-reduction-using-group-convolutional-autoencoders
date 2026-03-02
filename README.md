@@ -63,7 +63,8 @@ Defines all autoencoder architectures used in the project. The key variants are:
 
 | Name | Description |
 |------|-------------|
-| `UpsamplingCNNAutoencoder2D` | Standard (non-equivariant) CNN autoencoder baseline with the same upsampling decoder architecture. |
+| `CNNAutoencoder2D` | Standard (non-equivariant) CNN autoencoder baseline with transposed convolutions in the decoder architecture. Not used during the experiments. |
+| `UpsamplingCNNAutoencoder2D` | Standard (non-equivariant) CNN autoencoder baseline with the upsampling + convolutiona decoder architecture. Use throughout the work as "standard CNN". |
 | `RotationUpsamplingGCNNAutoencoder2D` | Group-equivariant autoencoder with C4 or C8 rotational symmetry, using ESCNN. The encoder uses group convolutions; the decoder uses upsampling transposed group convolutions. |
 | `TrivialUpsamplingGCNNAutoencoder2D` | GCNN autoencoder with H=C1 — equivariant in translation action (as standard CNNs) but without non-trivial group action on features. |
 | `RotationUpsamplingGCNN2D_TorchOnly` | GCNN autoencoder for H=C4, implemented using pyTorch and thus implementing group convolutions "by hand" instead of using escnn. |
