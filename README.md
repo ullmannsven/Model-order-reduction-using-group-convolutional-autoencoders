@@ -15,11 +15,11 @@ The core idea is to train a neural network autoencoder on waves propagating in o
 |   ├── early_stopping.py            # Early stopping procedure via checkpointing
 |   ├── trainer.py                   # Training prodedure of the autoencoders
 │   ├── models/
-│       ├── nonlinear_manifolds.py          # MOR wrapper around the autoencoder
 │       ├── deep_galerkin_utilities_IMR.py  # Deep Galerkin quasi-Newton solver
 │       ├── deep_lspg_utilities_IMR.py      # Deep LSPG quasi-Newton solver
-|       └── general_utilities.py            # Helpers that are employed in all files in the folder
-├── tests/ 
+|       ├── general_utilities.py            # Helpers that are employed in all files in the folder
+|       └── nonlinear_manifolds.py          # MOR wrapper around the autoencoder
+├── tests/                          
 |    ├── 45wave/
 |       ├── checkpoints/
 |       ├── mor_results
@@ -91,15 +91,37 @@ Wraps an autoencoder into a full MOR model (`NonlinearManifoldsMOR2D`). Handles 
 
 ---
 
-## Experiment Setup for the pure right moving wave (`tests/90wave/experiment_setup.py`)
+## Experiment for the pure right moving wave (`tests/90wave/`)
 
-Central configuration file for all experiments regarding the right moving wave. Contains:
+### `tests/90wave/AE_results/` 
 
-- **`WaveExperimentConfig`** — dataclass holding all experiment hyperparameters: grid size (`Nx`, `Ny`), number of timesteps (`nt`), timestep factor, flow direction (`x_flow`), and visualization flags.
-- **`WaveExperiment`** — sets up the pyMOR full-order model (FOM) for the 2D wave equation, provides helper methods for loading initial conditions, computing reference offsets, and evaluating error metrics.
-- **`get_filepath_patterns`** — returns a dict of standardized paths for snapshots, checkpoints, network parameters, and results directories.
+Projection results when using autoencoders. 
 
----
+### `tests/90wave/checkpoints/` 
+
+Checkpoints of the selected autoencoders for different AE setups and reduced basis sizes. 
+
+### `tests/90wave/CL_results/` 
+
+Results when using CL. 
+
+### `tests/90wave/mor_results/` 
+
+Results when using different autoencoder variants. 
+
+### `tests/90wave/network_parameters/` 
+
+### `tests/90wave/pod_results/` 
+
+Results regarding experiments when using POD 
+
+### `tests/90wave/scaling/` 
+Contains `scale.py`, which performs scaling (and inverse scaling) and the reshaping (and prolongation).
+
+### `tests/90wave/snapshots_grid/`
+
+Contains the FOM solution snapshots for the employed training and test data. 
+
 
 ## Basis Computation
 
@@ -120,6 +142,18 @@ python compute_pod_basis.py [--modes 50] [--centered]
 ```
 
 ---
+
+
+### `tests/90wave/experiment_setup.py` 
+
+Central configuration file for all experiments regarding the right moving wave. Contains:
+
+- **`WaveExperimentConfig`** — dataclass holding all experiment hyperparameters: grid size (`Nx`, `Ny`), number of timesteps (`nt`), timestep factor, flow direction (`x_flow`), and visualization flags.
+- **`WaveExperiment`** — sets up the pyMOR full-order model (FOM) for the 2D wave equation, provides helper methods for loading initial conditions, computing reference offsets, and evaluating error metrics.
+- **`get_filepath_patterns`** — returns a dict of standardized paths for snapshots, checkpoints, network parameters, and results directories.
+
+---
+
 
 ## Projection Error Evaluation
 
