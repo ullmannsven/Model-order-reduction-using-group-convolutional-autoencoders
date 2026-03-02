@@ -19,7 +19,7 @@ The core idea is to train a neural network autoencoder on waves propagating in o
 │       ├── deep_galerkin_utilities_IMR.py  # Deep Galerkin quasi-Newton solver
 │       ├── deep_lspg_utilities_IMR.py      # Deep LSPG quasi-Newton solver
 |       └── general_utilities.py            # Helpers that are employed in all files in the folder
-├── tests/                           # Experiment scripts
+├── tests/ 
 |    ├── 45wave/
 |       ├── checkpoints/
 |       ├── mor_results
@@ -71,17 +71,23 @@ Defines all autoencoder architectures used in the project. The key variants are:
 
 All autoencoders share the same encode/decode interface and are selected via the `AE_REGISTRY` in the test scripts.
 
-### `models/nonlinear_manifolds.py`
-Wraps an autoencoder into a full MOR model (`NonlinearManifoldsMOR2D`). Handles loading/saving of network weights, interfacing with pyMOR's full-order model (FOM), and managing the encode/decode pipeline together with data scaling.
+### `early_stopping.py` 
+Early stopping procedure, that checkpoints the best trained model via computing the current validation loss. Includes a patience parameter P, i.e., if no improvment of the validation loss for P epochs occurs, training is terminated. 
 
-### `models/deep_galerkin_utilities_IMR.py`
+### `trainer.py`
+Contains the complete training routine for a neural network, in this case employed only for autoencoders. Different loss functions, including the MSE, a weighted MSE, a physical aware MSE and the symplectic loss term are included here. 
+
+### `models/deep_galerkin_utilities_IMR`
 Implements the **Deep Galerkin** time integration: a quasi-Newton solver (`Galerkin_quasi_newton`) for implicit midpoint rule (IMR) timestepping on the reduced nonlinear manifold. The residual is formulated via Galerkin projection of the FOM onto the reduced manifold via the trained autoencoder
 
 ### `models/deep_lspg_utilities_IMR.py`
 Implements the **Deep LSPG** (Least-Squares Petrov-Galerkin) time integration: a quasi-Newton solver (`LSPG_quasi_newton`) for IMR timestepping. Differs from Galerkin in the test space used for projection — LSPG minimizes the full-order residual in a least-squares sense.
 
-### `scaling/scale.py`
-Provides `Scaler`, a utility class for normalizing and denormalizing snapshot data before passing it through the autoencoder. Handles both restriction (2D field → network input) and prolongation (network output → 2D field) operations.
+### `models/general_utlities.py`
+Implements general helpers, including a `apply_decoder` (applies the decoder and the respective unscaling and prolongation operator) and a `get_jacobian`, which computes the jacobian of the AE-decoder via pyTorches `jacfwd` method. 
+
+### `models/nonlinear_manifolds.py`
+Wraps an autoencoder into a full MOR model (`NonlinearManifoldsMOR2D`). Handles loading/saving of network weights, interfacing with pyMOR's full-order model (FOM), and managing the encode/decode pipeline together with data scaling.
 
 ---
 
@@ -176,6 +182,10 @@ python test_wave_deep_lspg.py --ae_name RotationUpsamplingGCNN_C8 [--p_red 8] [-
 
 ---
 
+## Experiment for diagonal moving wave (`tests/45wave/`)
+
+Structured in a similar fashion as the `tests/90wave`, therefore no additional detailed description is required here. 
+
 ## Autoencoder Registry
 
 All test scripts that use a trained autoencoder share the same `AE_REGISTRY`, which maps a short name to the corresponding network class and group space:
@@ -201,4 +211,3 @@ network_parameters/wave_2D_{ae_name}_p_{p_red}_{Nx}x{Ny}.pkl
 - [ESCNN](https://github.com/QUVA-Lab/escnn) — equivariant steerable CNNs (group convolutions)
 - [PyTorch](https://pytorch.org/) — neural network training and inference
 - NumPy, SciPy — numerical computations
-- [ParaView](https://www.paraview.org/) — optional, for visualization of PDE solutions
