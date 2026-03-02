@@ -12,25 +12,48 @@ The core idea is to train a neural network autoencoder on waves propagating in o
 .
 ├── equiv_networks/                  # Core library: network architectures and MOR models
 │   ├── autoencoders.py              # Autoencoder architecture definitions
+|   ├── early_stopping.py            # Early stopping procedure via checkpointing
+|   ├── trainer.py                   # Training prodedure of the autoencoders
 │   ├── models/
-│   │   └── instationary/
-│   │       ├── nonlinear_manifolds.py          # MOR wrapper around the autoencoder
-│   │       ├── deep_galerkin_utilities_IMR.py  # Deep Galerkin quasi-Newton solver
-│   │       └── deep_lspg_utilities_IMR.py      # Deep LSPG quasi-Newton solver
-│   └── ...
-├── scaling/
-│   └── scale.py                     # Data scaling/normalization utilities
-├── tests/                           # Experiment scripts (entry points)
-│   ├── experiment_setup.py          # Experiment configuration and FOM setup
-│   ├── compute_cl_basis.py          # Compute Cotangent Lift reduced basis
-│   ├── compute_pod_basis.py         # Compute POD reduced basis
-│   ├── proj_error_AE.py             # Projection error: autoencoder
-│   ├── proj_error_cl.py             # Projection error: Cotangent Lift
-│   ├── proj_error_pod.py            # Projection error: POD
-│   ├── test_wave_CL_galerkin.py     # ROM test: CL + Galerkin projection (pyMOR)
-│   ├── test_wave_pymor_pod.py       # ROM test: POD + Galerkin projection (pyMOR)
-│   ├── test_wave_deep_galerkin.py   # ROM test: AE + Deep Galerkin
-│   └── test_wave_deep_lspg.py      # ROM test: AE + Deep LSPG
+│       ├── nonlinear_manifolds.py          # MOR wrapper around the autoencoder
+│       ├── deep_galerkin_utilities_IMR.py  # Deep Galerkin quasi-Newton solver
+│       ├── deep_lspg_utilities_IMR.py      # Deep LSPG quasi-Newton solver
+|       └── general_utilities.py            # Helpers that are employed in all files in the folder
+├── tests/                           # Experiment scripts
+|    ├── 45wave/
+|       ├── checkpoints/
+|       ├── mor_results
+|       ├── network_parameters/
+|       ├── scaling/
+|       ├── snapshots/grid/
+|       ├── experiment_setup.py 
+|       ├── proj_error_AE.py
+|       ├── train_wave.py
+|       ├── visualize_snapshot.py
+        ├──wave_create_snapshots.py
+|    ├── 90wave/ 
+|       ├── AE_results/
+|       ├── checkpoints/
+|       ├── CL_results/
+|       ├── mor_results/
+|       ├── network_parameters/
+|       ├── pod_results/
+|       ├── scaling/
+|       ├── snapshots_grid/
+|       ├── scaling/
+|       ├── compute_cl_basis.py          # Compute Cotangent Lift reduced basis
+|       ├── compute_pod_basis.py         # Compute POD reduced basis
+|       ├── experiment_setup.py          # Experiment configuration and FOM setup
+|       ├── proj_error_AE.py             # Projection error: autoencoder
+|       ├── proj_error_cl.py             # Projection error: Cotangent Lift
+|       ├── proj_error_pod.py            # Projection error: POD
+│       ├── test_wave_cl_sg.py           # ROM test: CL + Galerkin projection
+│       ├── test_wave_deep_galerkin.py   # ROM test: AE + Deep Galerkin
+│       ├── test_wave_deep_lspg.py       # ROM test: AE + Deep LSPG
+│       ├── test_wave_pod_galerkin.py    # ROM test: POD + Galerkin projection
+│       ├── train_wave.py                # Autoencoder training
+|       ├── visualize_snapshot.py        # Visualization routine
+|       ├── wave_create_snapshots        # Compute FOM solutions
 ```
 
 ---
@@ -48,13 +71,13 @@ Defines all autoencoder architectures used in the project. The key variants are:
 
 All autoencoders share the same encode/decode interface and are selected via the `AE_REGISTRY` in the test scripts.
 
-### `models/instationary/nonlinear_manifolds.py`
+### `models/nonlinear_manifolds.py`
 Wraps an autoencoder into a full MOR model (`NonlinearManifoldsMOR2D`). Handles loading/saving of network weights, interfacing with pyMOR's full-order model (FOM), and managing the encode/decode pipeline together with data scaling.
 
-### `models/instationary/deep_galerkin_utilities_IMR.py`
-Implements the **Deep Galerkin** time integration: a quasi-Newton solver (`Galerkin_quasi_newton`) for implicit midpoint rule (IMR) timestepping on the reduced nonlinear manifold. The residual is formulated via Galerkin projection of the FOM operator onto the tangent space of the autoencoder.
+### `models/deep_galerkin_utilities_IMR.py`
+Implements the **Deep Galerkin** time integration: a quasi-Newton solver (`Galerkin_quasi_newton`) for implicit midpoint rule (IMR) timestepping on the reduced nonlinear manifold. The residual is formulated via Galerkin projection of the FOM onto the reduced manifold via the trained autoencoder
 
-### `models/instationary/deep_lspg_utilities_IMR.py`
+### `models/deep_lspg_utilities_IMR.py`
 Implements the **Deep LSPG** (Least-Squares Petrov-Galerkin) time integration: a quasi-Newton solver (`LSPG_quasi_newton`) for IMR timestepping. Differs from Galerkin in the test space used for projection — LSPG minimizes the full-order residual in a least-squares sense.
 
 ### `scaling/scale.py`
@@ -62,9 +85,9 @@ Provides `Scaler`, a utility class for normalizing and denormalizing snapshot da
 
 ---
 
-## Experiment Setup (`tests/experiment_setup.py`)
+## Experiment Setup for the pure right moving wave (`tests/90wave/experiment_setup.py`)
 
-Central configuration file for all experiments. Contains:
+Central configuration file for all experiments regarding the right moving wave. Contains:
 
 - **`WaveExperimentConfig`** — dataclass holding all experiment hyperparameters: grid size (`Nx`, `Ny`), number of timesteps (`nt`), timestep factor, flow direction (`x_flow`), and visualization flags.
 - **`WaveExperiment`** — sets up the pyMOR full-order model (FOM) for the 2D wave equation, provides helper methods for loading initial conditions, computing reference offsets, and evaluating error metrics.
