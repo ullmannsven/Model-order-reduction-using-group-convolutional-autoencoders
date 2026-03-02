@@ -46,8 +46,8 @@ The core idea is to train a neural network autoencoder on waves propagating in o
 |       ├── proj_error_AE.py                 # Projection error: autoencoder
 |       ├── proj_error_cl.py                 # Projection error: Cotangent Lift
 |       ├── proj_error_pod.py                # Projection error: POD
-│       ├── test_wave_cl_sg.py               # ROM test: CL + Galerkin projection
-│       ├── test_wave_manifold_galerkin.py   # ROM test: AE + manifold Galerkin
+│       ├── test_wave_cl_sg.py               # ROM test: CL + symplectic Galerkin projection
+│       ├── test_wave_manifold_galerkin.py   # ROM test: AE + (symplectic) manifold Galerkin
 │       ├── test_wave_manifold_lspg.py       # ROM test: AE + manifold LSPG
 │       ├── test_wave_pod_galerkin.py        # ROM test: POD + Galerkin projection
 │       ├── train_wave.py                    # Autoencoder training
@@ -69,7 +69,7 @@ Defines all autoencoder architectures used in the project. The key variants are:
 | `TrivialUpsamplingGCNNAutoencoder2D` | GCNN autoencoder with H=C1 — equivariant in translation action (as standard CNNs) but without non-trivial group action on features. |
 | `RotationUpsamplingGCNN2D_TorchOnly` | GCNN autoencoder for H=C4, implemented using pyTorch and thus implementing group convolutions "by hand" instead of using escnn. |
 
-All autoencoders share the same encode/decode interface and are selected via the `AE_REGISTRY` in the test scripts.
+All autoencoders share the same encode/decode interface and are selected via the `AE_REGISTRY` in the test scripts. This is explained in detail in the at the end of this readme file or in the respective python scripts where this is of relevance. 
 
 ### `early_stopping.py` 
 Early stopping procedure, that checkpoints the best trained model via computing the current validation loss. Includes a patience parameter P, i.e., if no improvment of the validation loss for P epochs occurs, training is terminated. 
@@ -171,7 +171,7 @@ Uses pyMOR's `QuadraticHamiltonianRBReductor` to build and solve a symplectic Ga
 
 
 ### `test_wave_manifold_galerkin.py` — Autoencoder + manifold Galerkin
-Runs the manifold Galerkin ROM: the autoencoder defines the nonlinear reduced manifold, and the implicit midpoint rule is solved via quasi-Newton iteration with Galerkin projection.
+Runs the manifold Galerkin ROM: the autoencoder defines the nonlinear reduced manifold, and the implicit midpoint rule is solved via quasi-Newton iteration with Galerkin projection. In particular, this contains the weakly symplectic autoencoder variant. 
 
 
 ### `test_wave_manifold_lspg.py` — Autoencoder + manifold LSPG
