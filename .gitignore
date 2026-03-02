@@ -37,6 +37,8 @@ checkpoints/
 snapshots_grid/
 mor_results/
 GCNN_tests/
+new_wave/
+pdes/
 *.pt
 *.pth
 *.ckpt
