@@ -1,1 +1,181 @@
-blibla 
+# Group Convolutional Autoencoders for Model Order Reduction
+
+This repository implements group-equivariant convolutional autoencoders combined with structure-preserving model order reduction (MOR) techniques for parametric dynamical systems. The primary application is the 2D wave equation, where rotational symmetry (C4/C8 equivariance) is exploited to improve generalization across different flow directions.
+
+The core idea is to train a neural network autoencoder on waves propagating in one direction and generalize — via group equivariance — to perpendicular directions without retraining.
+
+---
+
+## Project Structure
+
+```
+.
+├── equiv_networks/                  # Core library: network architectures and MOR models
+│   ├── autoencoders.py              # Autoencoder architecture definitions
+│   ├── models/
+│   │   └── instationary/
+│   │       ├── nonlinear_manifolds.py          # MOR wrapper around the autoencoder
+│   │       ├── deep_galerkin_utilities_IMR.py  # Deep Galerkin quasi-Newton solver
+│   │       └── deep_lspg_utilities_IMR.py      # Deep LSPG quasi-Newton solver
+│   └── ...
+├── scaling/
+│   └── scale.py                     # Data scaling/normalization utilities
+├── tests/                           # Experiment scripts (entry points)
+│   ├── experiment_setup.py          # Experiment configuration and FOM setup
+│   ├── compute_cl_basis.py          # Compute Cotangent Lift reduced basis
+│   ├── compute_pod_basis.py         # Compute POD reduced basis
+│   ├── proj_error_AE.py             # Projection error: autoencoder
+│   ├── proj_error_cl.py             # Projection error: Cotangent Lift
+│   ├── proj_error_pod.py            # Projection error: POD
+│   ├── test_wave_CL_galerkin.py     # ROM test: CL + Galerkin projection (pyMOR)
+│   ├── test_wave_pymor_pod.py       # ROM test: POD + Galerkin projection (pyMOR)
+│   ├── test_wave_deep_galerkin.py   # ROM test: AE + Deep Galerkin
+│   └── test_wave_deep_lspg.py      # ROM test: AE + Deep LSPG
+```
+
+---
+
+## Core Library (`equiv_networks/`)
+
+### `autoencoders.py`
+Defines all autoencoder architectures used in the project. The key variants are:
+
+| Name | Description |
+|------|-------------|
+| `RotationUpsamplingGCNNAutoencoder2D` | Group-equivariant autoencoder with C4 or C8 rotational symmetry, using ESCNN. The encoder uses group convolutions; the decoder uses upsampling transposed convolutions. |
+| `UpsamplingCNNAutoencoder2D` | Standard (non-equivariant) CNN autoencoder baseline with the same upsampling decoder architecture. |
+| `TrivialUpsamplingGCNNAutoencoder2D` | GCNN autoencoder with trivial (scalar) representations — equivariant in structure but without non-trivial group action on features. |
+
+All autoencoders share the same encode/decode interface and are selected via the `AE_REGISTRY` in the test scripts.
+
+### `models/instationary/nonlinear_manifolds.py`
+Wraps an autoencoder into a full MOR model (`NonlinearManifoldsMOR2D`). Handles loading/saving of network weights, interfacing with pyMOR's full-order model (FOM), and managing the encode/decode pipeline together with data scaling.
+
+### `models/instationary/deep_galerkin_utilities_IMR.py`
+Implements the **Deep Galerkin** time integration: a quasi-Newton solver (`Galerkin_quasi_newton`) for implicit midpoint rule (IMR) timestepping on the reduced nonlinear manifold. The residual is formulated via Galerkin projection of the FOM operator onto the tangent space of the autoencoder.
+
+### `models/instationary/deep_lspg_utilities_IMR.py`
+Implements the **Deep LSPG** (Least-Squares Petrov-Galerkin) time integration: a quasi-Newton solver (`LSPG_quasi_newton`) for IMR timestepping. Differs from Galerkin in the test space used for projection — LSPG minimizes the full-order residual in a least-squares sense.
+
+### `scaling/scale.py`
+Provides `Scaler`, a utility class for normalizing and denormalizing snapshot data before passing it through the autoencoder. Handles both restriction (2D field → network input) and prolongation (network output → 2D field) operations.
+
+---
+
+## Experiment Setup (`tests/experiment_setup.py`)
+
+Central configuration file for all experiments. Contains:
+
+- **`WaveExperimentConfig`** — dataclass holding all experiment hyperparameters: grid size (`Nx`, `Ny`), number of timesteps (`nt`), timestep factor, flow direction (`x_flow`), and visualization flags.
+- **`WaveExperiment`** — sets up the pyMOR full-order model (FOM) for the 2D wave equation, provides helper methods for loading initial conditions, computing reference offsets, and evaluating error metrics.
+- **`get_filepath_patterns`** — returns a dict of standardized paths for snapshots, checkpoints, network parameters, and results directories.
+
+---
+
+## Basis Computation
+
+These scripts precompute reduced bases from training snapshots and save them to disk. They are run once before any ROM tests.
+
+### `compute_cl_basis.py` — Cotangent Lift Basis
+Loads training snapshots for `mu ∈ {0.5, 0.75, 1.0}`, assembles a phase-space snapshot matrix, and computes a symplectic reduced basis using pyMOR's `psd_cotangent_lift`. Saves the basis as a pickle file.
+
+```bash
+python compute_cl_basis.py [--max_modes 50] [--centered]
+```
+
+### `compute_pod_basis.py` — POD Basis
+Loads the same training snapshots and computes a standard POD basis using pyMOR's `pod` function. Saves the basis as a `.npy` file.
+
+```bash
+python compute_pod_basis.py [--modes 50] [--centered]
+```
+
+---
+
+## Projection Error Evaluation
+
+These scripts evaluate how well each reduced representation can approximate test snapshots, without running a time integrator. They measure the offline approximation quality of each method.
+
+### `proj_error_AE.py` — Autoencoder Projection Error
+Encodes and decodes test snapshots through the trained autoencoder and computes the relative reconstruction error for each latent dimension size.
+
+```bash
+python proj_error_AE.py --ae_name RotationUpsamplingGCNN_C8 [--p_red 4 8 12 16] [--mu_val 0.8] [--write_csv]
+```
+
+### `proj_error_cl.py` — Cotangent Lift Projection Error
+Projects test snapshots onto the CL reduced basis using symplectic projection and computes the relative error for each basis size.
+
+```bash
+python proj_error_cl.py [--p_red 4 8 12 16] [--mu_val 0.6] [--rb_size 50] [--write_csv]
+```
+
+### `proj_error_pod.py` — POD Projection Error
+Projects test snapshots onto the POD basis via standard orthogonal projection and computes the relative error for each basis size.
+
+```bash
+python proj_error_pod.py [--p_red 4 8 12 16] [--mu_val 0.6] [--rb_size 50] [--centered] [--write_csv]
+```
+
+---
+
+## ROM Time Integration Tests
+
+These scripts run a full reduced-order model time integration and compare against reference snapshots.
+
+### `test_wave_CL_galerkin.py` — Cotangent Lift + Galerkin (pyMOR)
+Uses pyMOR's `QuadraticHamiltonianRBReductor` to build and solve a symplectic Galerkin ROM on the CL basis. Computes reconstruction errors against test snapshots.
+
+```bash
+python test_wave_CL_galerkin.py [--p_red 4 8 12 16] [--mu_val 0.6] [--rb_size 50] [--visualize] [--save_data]
+```
+
+### `test_wave_pymor_pod.py` — POD + Galerkin (pyMOR)
+Uses pyMOR's `InstationaryRBReductor` to build and solve a standard Galerkin ROM on the POD basis.
+
+```bash
+python test_wave_pymor_pod.py [--p_red 4 8 12 16] [--mu_val 0.6] [--rb_size 50] [--visualize] [--save_data]
+```
+
+### `test_wave_deep_galerkin.py` — Autoencoder + Deep Galerkin
+Runs the Deep Galerkin ROM: the autoencoder defines the nonlinear reduced manifold, and the implicit midpoint rule is solved via quasi-Newton iteration with Galerkin projection.
+
+```bash
+python test_wave_deep_galerkin.py --ae_name RotationUpsamplingGCNN_C8 [--p_red 8] [--mu_val 0.8] [--symplectic] [--visualize]
+```
+
+### `test_wave_deep_lspg.py` — Autoencoder + Deep LSPG
+Same as Deep Galerkin but uses LSPG projection (minimizes the full-order residual) instead of Galerkin projection. Generally more robust but more expensive per timestep.
+
+```bash
+python test_wave_deep_lspg.py --ae_name RotationUpsamplingGCNN_C8 [--p_red 8] [--mu_val 0.8] [--visualize] [--save_data]
+```
+
+---
+
+## Autoencoder Registry
+
+All test scripts that use a trained autoencoder share the same `AE_REGISTRY`, which maps a short name to the corresponding network class and group space:
+
+| `--ae_name` | Network class | Group |
+|-------------|---------------|-------|
+| `RotationUpsamplingGCNN_C4` | `RotationUpsamplingGCNNAutoencoder2D` | C4 (4 rotations) |
+| `RotationUpsamplingGCNN_C8` | `RotationUpsamplingGCNNAutoencoder2D` | C8 (8 rotations) |
+| `UpsamplingCNN` | `UpsamplingCNNAutoencoder2D` | None (baseline) |
+| `TrivialUpsamplingGCNN` | `TrivialUpsamplingGCNNAutoencoder2D` | Trivial |
+
+Checkpoint files are expected to follow the naming convention:
+```
+checkpoints/wave_2D_{ae_name}_p_{p_red}_{Nx}x{Ny}.pt
+network_parameters/wave_2D_{ae_name}_p_{p_red}_{Nx}x{Ny}.pkl
+```
+
+---
+
+## Dependencies
+
+- [pyMOR](https://pymor.org/) — model order reduction framework (FOM, reducers, symplectic methods)
+- [ESCNN](https://github.com/QUVA-Lab/escnn) — equivariant steerable CNNs (group convolutions)
+- [PyTorch](https://pytorch.org/) — neural network training and inference
+- NumPy, SciPy — numerical computations
+- [ParaView](https://www.paraview.org/) — optional, for visualization of PDE solutions
