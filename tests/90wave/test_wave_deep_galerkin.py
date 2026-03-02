@@ -20,6 +20,7 @@ Arguments:
     --scaled_data   Use scaled data (default: True). 
     --symplectic    Enable symplectic integration (default: False)
     --visualize     Enable visualization during timestepping.
+    --save_data     Save reduction errors to a CSV file (default: False)
 
 Checkpoint naming convention:
     wave_2D_{ae_name}_p_{p_red}_{Nx}x{Ny}.pt
@@ -42,7 +43,7 @@ import numpy as np
 import pickle
 import os
 from pathlib import Path
-
+import csv
 from pymor.basic import *
 
 import torch
@@ -79,7 +80,7 @@ AE_REGISTRY = {
 }
 
 
-def test_wave_deep_galerkin(ae_name, mu_val=0.8, p_red=8, scaled_data=True, symplectic=False, visualize=False):
+def test_wave_deep_galerkin(ae_name, mu_val=0.8, p_red=8, scaled_data=True, symplectic=False, visualize=False, save_data=False):
     """Test 2D wave equation with Deep-Galerkin method."""
 
     if ae_name not in AE_REGISTRY:
@@ -169,6 +170,17 @@ def test_wave_deep_galerkin(ae_name, mu_val=0.8, p_red=8, scaled_data=True, symp
     print(f"Relative error (q):      {metrics['relative_error_q']:.6e}")
     print(f"Relative error (p):      {metrics['relative_error_p']:.6e}")
 
+    
+    if save_data:
+        out_file = filepaths['results'] / f"reduction_error_{ae_name}_mu{mu_val}.csv"
+        file_exists = out_file.exists()
+        with open(out_file, "a", newline="") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(["x", "y"])
+            writer.writerow([p_red, metrics['relative_error_total']])
+        print(f"Saved CSV to: {out_file}")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -182,6 +194,7 @@ if __name__ == '__main__':
     parser.add_argument('--scaled_data', action=argparse.BooleanOptionalAction, default=True, help='Use scaled data (default: True)')
     parser.add_argument('--symplectic', action='store_true', default=False, help='Enable symplectic integration')
     parser.add_argument('--visualize', action='store_true', default=False, help='Enable visualization during timestepping')
+    parser.add_argument('--save_data', action='store_true', default=False, help='Save data to CSV file')
 
     args = parser.parse_args()
-    test_wave_deep_galerkin(ae_name=args.ae_name, mu_val=args.mu_val, p_red=args.p_red, scaled_data=args.scaled_data, symplectic=args.symplectic, visualize=args.visualize)
+    test_wave_deep_galerkin(ae_name=args.ae_name, mu_val=args.mu_val, p_red=args.p_red, scaled_data=args.scaled_data, symplectic=args.symplectic, visualize=args.visualize, save_data=args.save_data)

@@ -174,16 +174,7 @@ def test_wave_deep_lspg(ae_name, mu_val=1.5, p_red=12, scaled_data=True, visuali
     print(f"Relative error (latent): {metrics['relative_error_latent']:.6e}")
 
     if save_data:
-        result_file = filepaths['mor_results'] / f"approx_full_deep_lspg_{ae_name}_p_{p_red}"
-        with result_file.open('wb') as f:
-            pickle.dump({'mu': mu_test, 'u_deep_lspg': u_approx_full, 'u_full': u_test}, f)
-
-        error_file = filepaths['mor_results'] / "test_relative_errors_wave.txt"
-        with error_file.open("a") as f:
-            f.write(f"Deep-LSPG\t{ae_name}\t{p_red}\t{mu_val}\t{metrics['relative_error_total']}\n")
-
-        print(f"Saved results to: {result_file}")
-
+        pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
