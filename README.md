@@ -95,7 +95,7 @@ Wraps an autoencoder into a full MOR model (`NonlinearManifoldsMOR2D`). Handles 
 
 ### `tests/90wave/AE_results/` 
 
-Projection results when using autoencoders. 
+Projection results when using autoencoders. Contains results regarding GCNN, UpsamplingCNN and UpsamplingCNN_symplectic for the test parameters `mu ∈ {0.6, 0.8}`. The mean of these two is stored in seperate files (named without the mu-value at the end).
 
 ### `tests/90wave/checkpoints/` 
 
@@ -103,7 +103,7 @@ Checkpoints of the selected autoencoders for different AE setups and reduced bas
 
 ### `tests/90wave/CL_results/` 
 
-Results when using CL. 
+Results when using CL as projection method as well as CL-SG. Contains projections error, reduction errors as well as the computed RB using CL (once centered and once uncentered). 
 
 ### `tests/90wave/mor_results/` 
 
