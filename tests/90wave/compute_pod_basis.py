@@ -1,5 +1,17 @@
 #!/usr/bin/env python
+"""
+Compute the POD reduced basis for the wave equation experiment.
 
+Usage:
+    python compute_pod_basis.py [--modes MODES] [--centered]
+
+Arguments:
+    --modes     Number of POD modes to compute (default: 50)
+    --centered  If set, uses centered snapshots (subtracts initial state).
+                If omitted, snapshots are uncentered (initial state is added back).
+"""
+
+import argparse
 import numpy as np
 import pickle
 
@@ -10,24 +22,16 @@ from pathlib import Path
 from experiment_setup import WaveExperiment, WaveExperimentConfig
 
 
-def compute_pod_basis():
- 
-    # Configure experiment
-    config = WaveExperimentConfig(x_flow=True, nt=500, timestep_factor=1)
+def compute_pod_basis(modes=50, centered= False):
+    config = WaveExperimentConfig(x_flow=True, nt=500)
     experiment = WaveExperiment(config)
-    modes = 50
-    centered = False
-   
-    timestep_factor = config.timestep_factor
+
     Nx = config.Nx
     Ny = config.Ny
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     script_dir = Path(script_dir)
     filepaths = experiment.get_filepath_patterns(script_dir)
-    
-    # base_dir = os.path.join(script_dir, "snapshots_grid")
-    # os.makedirs(base_dir, exist_ok=True)
 
     arrays = []
     for mu_val in [0.5, 0.75, 1]:
@@ -49,9 +53,9 @@ def compute_pod_basis():
             q0, p0 = experiment._get_initial_condition(mu_val=mu)
             initial_state = np.hstack((q0, p0)).reshape(-1, 1)
             data_mat[i*config.nt:(i+1)*config.nt, :] = data_mat[i*config.nt:(i+1)*config.nt, :] + initial_state.T
-    
+
     # Slice q and p blocks
-    q_flat = data_mat[:, :n_space]        
+    q_flat = data_mat[:, :n_space]
     p_flat = data_mat[:, n_space:]
 
     # Reshape each time slice to images and stack as (T, 2, Ny, Nx)
@@ -62,10 +66,9 @@ def compute_pod_basis():
         snapshots_np[t, 0, :, :] = q_img
         snapshots_np[t, 1, :, :] = p_img
 
-    #snapshots_np = scaler.scale(snapshots_np)
     q_flat_scaled = snapshots_np[:, 0, :, :].reshape(T_total, Nx*Ny)
     p_flat_scaled = snapshots_np[:, 1, :, :].reshape(T_total, Nx*Ny)
- 
+
     U = experiment.fom.solution_space.empty()
 
     for i in range(T_total):
@@ -76,17 +79,33 @@ def compute_pod_basis():
     reduced_basis, _ = pod(U, modes=modes)
     reduced_basis_all = reduced_basis.to_numpy()
 
-    # save the reduced basis
-    # rb_dir = os.path.join(script_dir, "pod_results")
-    # rb_dir = Path(rb_dir)
-    # os.makedirs(rb_dir, exist_ok=True)
-
     if centered:
         rb_path = filepaths['pod_results'] / f"reduced_basis_{Nx}x{Ny}_rbsize_{reduced_basis_all.shape[1]}_nt_{config.nt}.npy"
-        np.save(rb_path, reduced_basis_all)
     else:
         rb_path = filepaths['pod_results'] / f"reduced_basis_uncentered_{Nx}x{Ny}_rbsize_{reduced_basis_all.shape[1]}_nt_{config.nt}.npy"
-        np.save(rb_path, reduced_basis_all)
+
+    np.save(rb_path, reduced_basis_all)
+    print(f"Saved reduced basis to: {rb_path}")
+
 
 if __name__ == '__main__':
-    compute_pod_basis()    
+    parser = argparse.ArgumentParser(
+        description='Compute the POD reduced basis for the wave equation experiment.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__
+    )
+    parser.add_argument(
+        '--modes',
+        type=int,
+        default=50,
+        help='Number of POD modes to compute (default: 50)'
+    )
+    parser.add_argument(
+        '--centered',
+        action='store_true',
+        default=False,
+        help='Use centered snapshots (subtract initial state). Default: uncentered.'
+    )
+
+    args = parser.parse_args()
+    compute_pod_basis(modes=args.modes, centered=args.centered)

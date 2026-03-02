@@ -1,5 +1,17 @@
 #!/usr/bin/env python
+"""
+Compute the Cotangent Lift (CL) reduced basis for the wave equation experiment.
 
+Usage:
+    python compute_cl_basis.py [--max_modes MAX_MODES] [--centered]
+
+Arguments:
+    --max_modes   Number of reduced basis modes to compute (default: 50)
+    --centered    If set, uses centered snapshots (subtracts initial state).
+                  If omitted, snapshots are uncentered (initial state is added back).
+"""
+
+import argparse
 import numpy as np
 import pickle
 import os
@@ -9,13 +21,10 @@ from pymor.basic import *
 from pymor.algorithms.symplectic import psd_cotangent_lift
 from experiment_setup import WaveExperimentConfig, WaveExperiment
 
-def compute_cl_basis(): 
 
-    # Configure experiment
+def compute_cl_basis(max_modes=50, centered=False):
     config = WaveExperimentConfig(nt=500, timestep_factor=1)
-    experiment = WaveExperiment(config) #dummy
-    max_modes = 50
-    centered = False
+    experiment = WaveExperiment(config)
 
     Nx = config.Nx
     Ny = config.Ny
@@ -26,7 +35,7 @@ def compute_cl_basis():
 
     arrays = []
     for mu_val in [0.5, 0.75, 1]:
-        mu_tag =  f"{mu_val:.2f}".replace('.', '')
+        mu_tag = f"{mu_val:.2f}".replace('.', '')
         filename = os.path.join(filepaths['snapshots'], f'snapshots_{Nx}x{Ny}_{mu_tag}_nt_{config.nt}')
         with open(filename, 'rb') as f:
             arr = pickle.load(f)['snapshots']
@@ -43,9 +52,9 @@ def compute_cl_basis():
         for i, mu_val in enumerate([0.5, 0.75, 1]):
             initial_state = experiment.get_initial_state(mu_val=mu_val)
             data_mat[i*config.nt:(i+1)*config.nt, :] = data_mat[i*config.nt:(i+1)*config.nt, :] + initial_state.T
-    
+
     # Slice q and p blocks
-    q_flat = data_mat[:, :n_space]      
+    q_flat = data_mat[:, :n_space]
     p_flat = data_mat[:, n_space:]
 
     # Reshape each time slice to images and stack as (T, 2, Ny, Nx)
@@ -66,10 +75,33 @@ def compute_cl_basis():
     # save the CL basis
     if centered:
         rb_path = filepaths['cl_results'] / f"reduced_basis_{Nx}x{Ny}_rbsize_{max_modes}_nt_{config.nt}"
-    else: 
+    else:
         rb_path = filepaths['cl_results'] / f"reduced_basis_uncentered_{Nx}x{Ny}_rbsize_{max_modes}_nt_{config.nt}"
+
     with open(rb_path, 'wb') as file:
         pickle.dump(reduced_basis, file)
 
+    print(f"Saved reduced basis to: {rb_path}")
+
+
 if __name__ == '__main__':
-    compute_cl_basis()
+    parser = argparse.ArgumentParser(
+        description='Compute the Cotangent Lift reduced basis for the wave equation experiment.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__
+    )
+    parser.add_argument(
+        '--max_modes',
+        type=int,
+        default=50,
+        help='Number of reduced basis modes to compute (default: 50)'
+    )
+    parser.add_argument(
+        '--centered',
+        action='store_true',
+        default=False,
+        help='Use centered snapshots (subtract initial state). Default: uncentered.'
+    )
+
+    args = parser.parse_args()
+    compute_cl_basis(max_modes=args.max_modes, centered=args.centered)
