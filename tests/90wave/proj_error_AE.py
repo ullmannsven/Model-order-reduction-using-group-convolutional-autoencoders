@@ -49,7 +49,7 @@ from equiv_networks.autoencoders import (
     TrivialUpsamplingGCNNAutoencoder2D,
 )
 
-from equiv_networks.models.instationary.nonlinear_manifolds import NonlinearManifoldsMOR2D
+from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
 from scaling.scale import Scaler
 from experiment_setup import WaveExperimentConfig, WaveExperiment
 

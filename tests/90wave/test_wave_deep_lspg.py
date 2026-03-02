@@ -53,8 +53,8 @@ from equiv_networks.autoencoders import (
     UpsamplingCNNAutoencoder2D,
     TrivialUpsamplingGCNNAutoencoder2D,
 )
-from equiv_networks.models.instationary.nonlinear_manifolds import NonlinearManifoldsMOR2D
-from equiv_networks.models.instationary.deep_lspg_utilities_IMR import LSPG_quasi_newton
+from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
+from equiv_networks.models.deep_lspg_utilities_IMR import LSPG_quasi_newton
 from scaling.scale import Scaler
 from experiment_setup import WaveExperiment, WaveExperimentConfig
 
