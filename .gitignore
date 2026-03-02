@@ -39,8 +39,13 @@ mor_results/
 GCNN_tests/
 new_wave/
 pdes/
-test_wave_CL_galerkin.py
-test_wave_pod_galerkin.py
+test_wave_CL_galerkin_old.py
+test_wave_pod_galerkin_old.py
+compute_mean_of_csv_files.py
+deep_galerkin_utilities_bdf.py
+pod_galerkin_utilities_BDF.py
+pod_galerkin_utilities_IMR.py 
+pod_lspg_utilities_IMR.py
 *.pt
 *.pth
 *.ckpt
