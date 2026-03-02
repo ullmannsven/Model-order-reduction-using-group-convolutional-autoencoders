@@ -11,7 +11,7 @@ from pymor.basic import *
 import torch
 from escnn import gspaces
 
-from equiv_networks.autoencoders import CNNAutoencoder2D, RotationUpsamplingGCNNAutoencoder2D, UpsamplingCNNAutoencoder2D
+from equiv_networks.autoencoders import RotationUpsamplingGCNNAutoencoder2D, UpsamplingCNNAutoencoder2D
 from equiv_networks.equiv_ae import RotationUpsamplingGCNN2D_TorchOnly
 from equiv_networks.models.instationary.nonlinear_manifolds import NonlinearManifoldsMOR2D
 from scaling.scale import Scaler
