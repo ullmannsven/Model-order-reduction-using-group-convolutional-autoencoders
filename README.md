@@ -40,18 +40,18 @@ The core idea is to train a neural network autoencoder on waves propagating in o
 |       ├── scaling/
 |       ├── snapshots_grid/
 |       ├── scaling/
-|       ├── compute_cl_basis.py          # Compute Cotangent Lift reduced basis
-|       ├── compute_pod_basis.py         # Compute POD reduced basis
-|       ├── experiment_setup.py          # Experiment configuration and FOM setup
-|       ├── proj_error_AE.py             # Projection error: autoencoder
-|       ├── proj_error_cl.py             # Projection error: Cotangent Lift
-|       ├── proj_error_pod.py            # Projection error: POD
-│       ├── test_wave_cl_sg.py           # ROM test: CL + Galerkin projection
+|       ├── compute_cl_basis.py              # Compute Cotangent Lift reduced basis
+|       ├── compute_pod_basis.py             # Compute POD reduced basis
+|       ├── experiment_setup.py              # Experiment configuration and FOM setup
+|       ├── proj_error_AE.py                 # Projection error: autoencoder
+|       ├── proj_error_cl.py                 # Projection error: Cotangent Lift
+|       ├── proj_error_pod.py                # Projection error: POD
+│       ├── test_wave_cl_sg.py               # ROM test: CL + Galerkin projection
 │       ├── test_wave_manifold_galerkin.py   # ROM test: AE + manifold Galerkin
 │       ├── test_wave_manifold_lspg.py       # ROM test: AE + manifold LSPG
-│       ├── test_wave_pod_galerkin.py    # ROM test: POD + Galerkin projection
-│       ├── train_wave.py                # Autoencoder training
-|       └── wave_create_snapshots        # Compute FOM solutions
+│       ├── test_wave_pod_galerkin.py        # ROM test: POD + Galerkin projection
+│       ├── train_wave.py                    # Autoencoder training
+|       └── wave_create_snapshots            # Compute FOM solutions
 ```
 
 ---
@@ -63,9 +63,9 @@ Defines all autoencoder architectures used in the project. The key variants are:
 
 | Name | Description |
 |------|-------------|
-| `RotationUpsamplingGCNNAutoencoder2D` | Group-equivariant autoencoder with C4 or C8 rotational symmetry, using ESCNN. The encoder uses group convolutions; the decoder uses upsampling transposed convolutions. |
 | `UpsamplingCNNAutoencoder2D` | Standard (non-equivariant) CNN autoencoder baseline with the same upsampling decoder architecture. |
-| `TrivialUpsamplingGCNNAutoencoder2D` | GCNN autoencoder with trivial (scalar) representations — equivariant in structure but without non-trivial group action on features. |
+| `RotationUpsamplingGCNNAutoencoder2D` | Group-equivariant autoencoder with C4 or C8 rotational symmetry, using ESCNN. The encoder uses group convolutions; the decoder uses upsampling transposed group convolutions. |
+| `TrivialUpsamplingGCNNAutoencoder2D` | GCNN autoencoder with H=C1 — equivariant in translation action (as standard CNNs) but without non-trivial group action on features. |
 | `RotationUpsamplingGCNN2D_TorchOnly` | GCNN autoencoder for H=C_4, implemented using pyTorch and thus implementing group convolutions "by hand" instead of using escnn. |
 
 All autoencoders share the same encode/decode interface and are selected via the `AE_REGISTRY` in the test scripts.

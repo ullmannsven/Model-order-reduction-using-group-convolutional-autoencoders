@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-Test 2D wave equation with Deep-LSPG method.
+Test 2D wave equation with manifold-LSPG method.
 
 Usage:
-    python test_wave_deep_lspg.py --ae_name AE_NAME [--mu_val MU]
+    python test_wave_manifold_lspg.py --ae_name AE_NAME [--mu_val MU]
                                   [--p_red N] [--scaled_data] [--no_scaled_data]
                                   [--visualize] [--save_data]
 
@@ -27,13 +27,13 @@ Checkpoint naming convention:
 
 Examples:
     # CNN baseline, default settings
-    python test_wave_deep_lspg.py --ae_name UpsamplingCNN
+    python test_wave_manifold_lspg.py --ae_name UpsamplingCNN
 
     # C8 network, different mu, save results
-    python test_wave_deep_lspg.py --ae_name RotationUpsamplingGCNN_C8 --mu_val 0.8 --p_red 8 --save_data
+    python test_wave_manifold_lspg.py --ae_name RotationUpsamplingGCNN_C8 --mu_val 0.8 --p_red 8 --save_data
 
     # With visualization
-    python test_wave_deep_lspg.py --ae_name UpsamplingCNN --visualize
+    python test_wave_manifold_lspg.py --ae_name UpsamplingCNN --visualize
 """
 
 import argparse
@@ -54,7 +54,7 @@ from equiv_networks.autoencoders import (
     TrivialUpsamplingGCNNAutoencoder2D,
 )
 from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
-from equiv_networks.models.deep_lspg_utilities_IMR import LSPG_quasi_newton
+from equiv_networks.models.manifold_lspg_utilities_IMR import LSPG_quasi_newton
 from scaling.scale import Scaler
 from experiment_setup import WaveExperiment, WaveExperimentConfig
 
@@ -79,8 +79,8 @@ AE_REGISTRY = {
 }
 
 
-def test_wave_deep_lspg(ae_name, mu_val=1.5, p_red=12, scaled_data=True, visualize=False, save_data=False):
-    """Test 2D wave equation with Deep-LSPG method."""
+def test_wave_manifold_lspg(ae_name, mu_val=1.5, p_red=12, scaled_data=True, visualize=False, save_data=False):
+    """Test 2D wave equation with manifold-LSPG method."""
 
     if ae_name not in AE_REGISTRY:
         raise ValueError(f"Unknown ae_name '{ae_name}'. Choose from: {list(AE_REGISTRY.keys())}")
@@ -178,7 +178,7 @@ def test_wave_deep_lspg(ae_name, mu_val=1.5, p_red=12, scaled_data=True, visuali
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Test 2D wave equation with Deep-LSPG method.',
+        description='Test 2D wave equation with manifold-LSPG method.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -190,4 +190,4 @@ if __name__ == '__main__':
     parser.add_argument('--save_data', action='store_true', default=False, help='Save ROM solution and error metrics to file')
 
     args = parser.parse_args()
-    test_wave_deep_lspg(ae_name=args.ae_name, mu_val=args.mu_val, p_red=args.p_red, scaled_data=args.scaled_data, visualize=args.visualize, save_data=args.save_data)
+    test_wave_manifold_lspg(ae_name=args.ae_name, mu_val=args.mu_val, p_red=args.p_red, scaled_data=args.scaled_data, visualize=args.visualize, save_data=args.save_data)
