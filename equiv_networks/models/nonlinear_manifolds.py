@@ -1,9 +1,43 @@
 #!/usr/bin/env python
+from abc import abstractmethod
+import os
 
 import torch.nn as nn
-
-from equiv_networks.models.base import BaseModel
+import torch
 from equiv_networks.trainer import Trainer
+
+class BaseModel:
+
+    def __init__(self, network, dims, network_parameters={}, trainer=Trainer,
+                 parameters_trainer={}):
+
+        self.network = network(dims=dims, **network_parameters).double()
+        self.trainer = trainer(self, **parameters_trainer)
+        self.path = None
+
+    def train(self, parameters_training={}):
+        return self.trainer.train(**parameters_training)
+
+    def save_neural_network(self, path=None):
+        if path is None:
+            if self.path is None:
+                import time
+                time_string = time.strftime("%Y%m%d-%H%M%S")
+                path = "torch-model-" + time_string + ".pt"
+                self.path = path
+        else:
+            self.path = path
+
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        torch.save(self.network.state_dict(), self.path)
+
+
+    def load_neural_network(self, path=None):
+        if path is None:
+            self.network.load_state_dict(torch.load(self.path))
+        else:
+            self.network.load_state_dict(torch.load(path, map_location=torch.device("cpu")))
+
 
 
 class NonlinearManifoldsMOR2D(BaseModel):
@@ -11,19 +45,18 @@ class NonlinearManifoldsMOR2D(BaseModel):
 
     Parameters
     ----------
-    full_order_model
-        Full order model that can be used to create snapshots for training/
-        validation/testing.
     network
-        Constructor of the convolutional autoencoder to use.
+        Neural network class to use for the autoencoder.
+    scaler
+        Scaler object used to scale the data before training and unscale the predictions.
+    dims
+        Tuple of dimensions of the full-order model (e.g. (2, Nx, Ny)).
     network_parameters
         Additional parameters used to create the neural network.
     trainer
           Trainer to use for the neural network.
     parameters_trainer
         Additional parameters used to create the Trainer.
-    data_creator
-        Object that creates training and validation samples.
     loss_function
         Loss function to use in the training of the neural network.
     """
@@ -44,27 +77,3 @@ class NonlinearManifoldsMOR2D(BaseModel):
         self.dims = dims
         self.loss_function = loss_function
         self.save_checkpoint = True
-
-    #TODO this is done slightly different on the server
-    def prepare_batch(self, batch):
-        """Prepare the data for usage in training procedure
-
-        Parameters
-        ----------
-        batch
-            Batch to convert.
-
-        Returns
-        -------
-        Dictionary with input and target tensors.
-        """
-        inputs = []
-        targets = []
-
-        for item in batch:
-            u_full_step_shifted = item['u_full_step_shifted'] # this is size (2, Nx, Ny) in the case of a hamiltonian system
-            # input and targets are the same, as we aim to learn the identity in AE training
-            inputs.append(u_full_step_shifted)
-            targets.append(u_full_step_shifted)
-
-        return {'inputs': inputs, 'targets': targets}
