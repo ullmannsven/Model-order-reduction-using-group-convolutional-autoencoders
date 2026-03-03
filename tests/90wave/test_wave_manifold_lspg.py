@@ -48,11 +48,7 @@ from pymor.basic import *
 import torch
 from escnn import gspaces
 
-from equiv_networks.autoencoders import (
-    RotationUpsamplingGCNNAutoencoder2D,
-    UpsamplingCNNAutoencoder2D,
-    TrivialUpsamplingGCNNAutoencoder2D,
-)
+from equiv_networks.autoencoders import RotationUpsamplingGCNNAutoencoder2D, UpsamplingCNNAutoencoder2D
 from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
 from equiv_networks.models.manifold_lspg_utilities_IMR import LSPG_quasi_newton
 from scaling.scale import Scaler
@@ -60,7 +56,7 @@ from experiment_setup import WaveExperiment, WaveExperimentConfig
 
 
 AE_REGISTRY = {
-    'RotationUpsamplingGCNN_C4': {
+    'RotationUpsamplingGCNN': {
         'class': RotationUpsamplingGCNNAutoencoder2D,
         'gspace': lambda: gspaces.rot2dOnR2(N=4),
     },
@@ -72,10 +68,18 @@ AE_REGISTRY = {
         'class': UpsamplingCNNAutoencoder2D,
         'gspace': None,
     },
-    'TrivialUpsamplingGCNN': {
-        'class': TrivialUpsamplingGCNNAutoencoder2D,
+    'UpsamplingCNN_Symplectic': {
+        'class': UpsamplingCNNAutoencoder2D,
         'gspace': None,
     },
+    'RotationUpsamplingGCNN_bothdir': {
+        'class': RotationUpsamplingGCNNAutoencoder2D,
+        'gspace': lambda: gspaces.rot2dOnR2(N=4),
+    }, 
+    'UpsamplingCNN_bothdir': {
+        'class': UpsamplingCNNAutoencoder2D,
+        'gspace': None,
+    }
 }
 
 
