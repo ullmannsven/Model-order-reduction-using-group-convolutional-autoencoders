@@ -3,14 +3,16 @@
 Compute CL projection errors for the wave equation experiment.
 
 Usage:
-    python proj_error_cl.py [--mu_val MU] [--p_red P [P ...]]
-                            [--rb_size N] [--centered] [--write_csv]
+    python proj_error_cl.py [--xflow] [--mu_val MU] [--p_red P [P ...]]
+                            [--rb_size N] [--centered] [--visualize] [--write_csv]
 
 Arguments:
+    --xflow     Use x-flow formulation (default: True).
     --mu_val    Test parameter value (default: 0.6)
     --p_red     One or more reduced dimensions to evaluate (default: 4 8 12 16)
     --rb_size   Size of the reduced basis to load (default: 50)
     --centered  Load the centered reduced basis. Default: uncentered.
+    --visualize Enable visualization during timestepping (default: False).
     --write_csv Write projection errors to a CSV file.
 
 Examples:
@@ -37,9 +39,9 @@ from pymor.vectorarrays.block import BlockVectorSpace
 from experiment_setup import WaveExperiment, WaveExperimentConfig
 
 
-def proj_error_cl(mu_val=0.6, p_red_values=[4, 8, 12, 16], rb_size=50, centered=False, write_csv=False):
+def proj_error_cl(xflow=True, mu_val=0.6, p_red_values=[4, 8, 12, 16], rb_size=50, centered=False, visualize=False, write_csv=False):
 
-    config = WaveExperimentConfig(x_flow=True, nt=500, timestep_factor=1)
+    config = WaveExperimentConfig(x_flow=xflow, nt=500, timestep_factor=1)
     experiment = WaveExperiment(config)
 
     Nx = config.Nx
@@ -81,6 +83,12 @@ def proj_error_cl(mu_val=0.6, p_red_values=[4, 8, 12, 16], rb_size=50, centered=
         rb_tsi = rb.transposed_symplectic_inverse()
         u_proj = rb.lincomb(u_test_pymor.inner(rb_tsi.to_array()).T)
 
+        if visualize:
+            space2 = NumpyVectorSpace(config.Nx * config.Ny * 2)
+            experiment.fom.visualize(space2.from_numpy((u_proj.to_numpy().reshape(2 * Nx * Ny, -1)[:, 100] + initial_state[:, 0])))
+            experiment.fom.visualize(space2.from_numpy(u_test[:, 100] + initial_state[:, 0]))
+            experiment.fom.visualize(space2.from_numpy((u_proj.to_numpy().reshape(2 * Nx * Ny, -1)[:, 100] - u_test[:, 100])))
+
         error = np.sum(np.linalg.norm(u_proj.to_numpy().reshape(2 * Nx * Ny, -1) - u_test, axis=0))
         error_den = np.sum(np.linalg.norm(u_test + initial_state, axis=0))
 
@@ -103,38 +111,13 @@ if __name__ == '__main__':
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument(
-        '--mu_val',
-        type=float,
-        default=0.6,
-        help='Test parameter value mu (default: 0.6)',
-    )
-    parser.add_argument(
-        '--p_red',
-        type=int,
-        nargs='+',
-        default=[4, 8, 12, 16],
-        metavar='P',
-        help='Reduced dimension(s) to evaluate (default: 4 8 12 16)',
-    )
-    parser.add_argument(
-        '--rb_size',
-        type=int,
-        default=50,
-        help='Size of the reduced basis to load (default: 50)',
-    )
-    parser.add_argument(
-        '--centered',
-        action='store_true',
-        default=False,
-        help='Load the centered reduced basis. Default: uncentered.',
-    )
-    parser.add_argument(
-        '--write_csv',
-        action='store_true',
-        default=False,
-        help='Write projection errors to a CSV file.',
-    )
+    parser.add_argument('--xflow', action='store_true', default=True, help='Use x-flow formulation (default: True)')
+    parser.add_argument('--mu_val', type=float, default=0.8, help='Test parameter value mu (default: 0.8)')
+    parser.add_argument('--p_red',type=int,nargs='+',default=[4, 8, 12, 16],metavar='P',help='Reduced dimension(s) to evaluate (default: 4 8 12 16)',)
+    parser.add_argument('--rb_size', type=int,default=50,help='Size of the reduced basis to load (default: 50)',)
+    parser.add_argument('--centered',action='store_true',default=False,help='Load the centered reduced basis. Default: uncentered.')
+    parser.add_argument('--visualize', action='store_true', default=False, help='Enable visualization during timestepping (default: False).')
+    parser.add_argument('--write_csv', action='store_true', default=False,help='Write projection errors to a CSV file.')
 
     args = parser.parse_args()
-    proj_error_cl(mu_val=args.mu_val, p_red_values=args.p_red, rb_size=args.rb_size, centered=args.centered, write_csv=args.write_csv)
+    proj_error_cl(xflow=args.xflow, mu_val=args.mu_val, p_red_values=args.p_red, rb_size=args.rb_size, centered=args.centered, visualize=args.visualize, write_csv=args.write_csv)

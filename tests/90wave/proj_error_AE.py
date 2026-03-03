@@ -3,7 +3,7 @@
 Compute projection errors for a trained Autoencoder on the wave equation experiment.
 
 Usage:
-    python proj_error_AE.py --ae_name AE_NAME [--p_red P [P ...]] [--mu_val MU] [--scaled_data] [--write_csv]
+    python proj_error_AE.py [--ae_name AE_NAME] [--xflow] [--p_red P [P ...]] [--mu_val MU] [--scaled_data] [--visualize] [--write_csv]
 
 Arguments:
     --ae_name       Name of the autoencoder architecture. Determines which network
@@ -13,11 +13,12 @@ Arguments:
                         RotationUpsamplingGCNN_C8   -> RotationUpsamplingGCNNAutoencoder2D (N=8)
                         UpsamplingCNN               -> UpsamplingCNNAutoencoder2D
                         TrivialUpsamplingGCNN       -> TrivialUpsamplingGCNNAutoencoder2D
-
+    --xflow         Enable xflow (default: True).
     --p_red         One or more reduced dimensions to evaluate (default: 4 8 12 16)
     --mu_val        Test parameter value (default: 0.8)
     --scaled_data   Use scaled data (default: True)
-    --write_csv     Write projection errors to a CSV file
+    --visualize     Enable visualization during timestepping (default: False)
+    --write_csv     Write projection errors to a CSV file (default: False)
 
 
 Examples:
@@ -27,8 +28,11 @@ Examples:
     # CNN baseline, single p_red, write CSV
     python proj_error_AE.py --ae_name UpsamplingCNN --p_red 8 --write_csv 
 
-    # C4 network, multiple p_red values, different mu
-    python proj_error_AE.py --ae_name RotationUpsamplingGCNN_C4 --p_red 4 8 16 --mu_val 0.75
+    # C4 network, multiple p_red values, different mu, visualize 
+    python proj_error_AE.py --ae_name RotationUpsamplingGCNN_C4 --p_red 4 8 16 --mu_val 0.75 --visualize
+
+    # yflow 
+    python proj_error_AE.py --ae_name RotationUpsamplingGCNN_C4 --no-xflow --p_red 4
 """
 
 import argparse
@@ -43,18 +47,13 @@ from pymor.basic import *
 import torch
 from escnn import gspaces
 
-from equiv_networks.autoencoders import (
-    RotationUpsamplingGCNNAutoencoder2D,
-    UpsamplingCNNAutoencoder2D,
-    TrivialUpsamplingGCNNAutoencoder2D,
-)
-
+from equiv_networks.autoencoders import RotationUpsamplingGCNNAutoencoder2D, UpsamplingCNNAutoencoder2D
 from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
 from scaling.scale import Scaler
 from experiment_setup import WaveExperimentConfig, WaveExperiment
 
 AE_REGISTRY = {
-    'RotationUpsamplingGCNN_C4': {
+    'RotationUpsamplingGCNN': {
         'class': RotationUpsamplingGCNNAutoencoder2D,
         'gspace': lambda: gspaces.rot2dOnR2(N=4),
     },
@@ -66,16 +65,24 @@ AE_REGISTRY = {
         'class': UpsamplingCNNAutoencoder2D,
         'gspace': None,
     },
-    'TrivialUpsamplingGCNN': {
-        'class': TrivialUpsamplingGCNNAutoencoder2D,
+    'UpsamplingCNN_Symplectic': {
+        'class': UpsamplingCNNAutoencoder2D,
         'gspace': None,
     },
+    'RotationUpsamplingGCNN_bothdir': {
+        'class': RotationUpsamplingGCNNAutoencoder2D,
+        'gspace': lambda: gspaces.rot2dOnR2(N=4),
+    }, 
+    'UpsamplingCNN_bothdir': {
+        'class': UpsamplingCNNAutoencoder2D,
+        'gspace': None,
+    }
 }
 
 
-def proj_error_AE(ae_name, p_red_values, mu_val= 0.8, scaled_data = True, write_csv = False):
+def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True, visualize=False, write_csv = False):
 
-    config = WaveExperimentConfig(x_flow=True, visualize_q=True, nt=500, timestep_factor=1)
+    config = WaveExperimentConfig(x_flow=xflow, visualize_q=True, nt=500, timestep_factor=1)
     experiment = WaveExperiment(config)
 
     script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -155,6 +162,12 @@ def proj_error_AE(ae_name, p_red_values, mu_val= 0.8, scaled_data = True, write_
                 sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.double, device="cpu"))[0].detach().cpu().numpy()
                 sol_rot_dec = scaler.prolongate(sol_rot_dec)
 
+            if visualize and i == 100:
+                space2 = NumpyVectorSpace(config.Nx * config.Ny * 2)
+                experiment.fom.visualize(space2.from_numpy((sol_rot_dec + u_ref.reshape(-1, 1))))
+                experiment.fom.visualize(space2.from_numpy(sol_rot.reshape(-1,1) + initial_state))
+                experiment.fom.visualize(space2.from_numpy(sol_rot.reshape(-1,1) + initial_state - sol_rot_dec - u_ref.reshape(-1, 1)))
+
             errors[i, 0] = np.linalg.norm(sol_rot.reshape(-1, 1) - sol_rot_dec.reshape(-1, 1)) ** 2
             errors_den[i, 0]= np.linalg.norm(u_test[:, i]) ** 2
 
@@ -189,43 +202,13 @@ if __name__ == '__main__':
         epilog=__doc__,
     )
 
-    parser.add_argument(
-        '--ae_name',
-        type=str,
-        required=True,
-        choices=list(AE_REGISTRY.keys()),
-        help='Autoencoder architecture name (determines network class and checkpoint lookup)',
-    )
-
-    parser.add_argument(
-        '--p_red',
-        type=int,
-        nargs='+',
-        default=[4, 8, 12, 16],
-        metavar='P',
-        help='Reduced dimension(s) to evaluate (default: 4 8 12 16)',
-    )
-    
-    parser.add_argument(
-        '--mu_val',
-        type=float,
-        default=0.8,
-        help='Test parameter value mu (default: 0.8)',
-    )
-
-    parser.add_argument(
-        '--scaled_data',
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help='Use scaled data (default: True). Use --no_scaled_data to disable.',
-    )
-
-    parser.add_argument(
-        '--write_csv',
-        action='store_true',
-        default=False,
-        help='Write projection errors to a CSV file',
-    )
+    parser.add_argument('--ae_name', type=str, required=True, choices=list(AE_REGISTRY.keys()), help='Autoencoder architecture name (determines network class and checkpoint lookup)')
+    parser.add_argument('--xflow', action=argparse.BooleanOptionalAction, default=True, help='Enable xflow (default: True).')
+    parser.add_argument('--p_red', type=int, nargs='+', default=[4, 8, 12, 16], metavar='P', help='Reduced dimension(s) to evaluate (default: 4 8 12 16)')
+    parser.add_argument( '--mu_val', type=float, default=0.8, help='Test parameter value mu (default: 0.8)')
+    parser.add_argument('--scaled_data', action=argparse.BooleanOptionalAction, default=True, help='Use scaled data (default: True).')
+    parser.add_argument('--visualize', action='store_true', default=False, help='Enable visualization during timestepping (default: False)')
+    parser.add_argument('--write_csv', action='store_true', default=False, help='Write projection errors to a CSV file')
     
     args = parser.parse_args()
-    proj_error_AE(ae_name=args.ae_name,p_red_values=args.p_red, mu_val=args.mu_val, scaled_data=args.scaled_data, write_csv=args.write_csv)
+    proj_error_AE(ae_name=args.ae_name, xflow=args.xflow, p_red_values=args.p_red, mu_val=args.mu_val, scaled_data=args.scaled_data, visualize=args.visualize, write_csv=args.write_csv)

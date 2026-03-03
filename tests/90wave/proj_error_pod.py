@@ -4,13 +4,14 @@ Compute POD projection errors for the wave equation experiment.
 
 Usage:
     python proj_error_pod.py [--mu_val MU] [--p_red P [P ...]]
-                             [--rb_size N] [--centered] [--write_csv]
+                             [--rb_size N] [--centered] [--visualize] [--write_csv]
 
 Arguments:
     --mu_val    Test parameter value (default: 0.6)
     --p_red     One or more reduced dimensions to evaluate (default: 4 8 12 16)
     --rb_size   Size of the reduced basis to load (default: 50)
     --centered  Load the centered reduced basis. Default: uncentered.
+    --visualize Enable visualization during timestepping (default: False).
     --write_csv Write projection errors to a CSV file.
 
 Examples:
@@ -36,7 +37,7 @@ from pymor.basic import *
 from experiment_setup import WaveExperiment, WaveExperimentConfig
 
 
-def proj_error_pod(mu_val=0.6, p_red_values=[4, 8, 12, 16], rb_size=50, centered=False, write_csv=False):
+def proj_error_pod(mu_val=0.6, p_red_values=[4, 8, 12, 16], rb_size=50, centered=False, visualize=False, write_csv=False):
 
     config = WaveExperimentConfig(x_flow=True, nt=500, timestep_factor=1)
     experiment = WaveExperiment(config)
@@ -85,6 +86,13 @@ def proj_error_pod(mu_val=0.6, p_red_values=[4, 8, 12, 16], rb_size=50, centered
 
             sol_enc = reduced_basis.T @ sol
             sol_dec = reduced_basis @ sol_enc
+
+            if visualize and i == 100:
+                space2 = NumpyVectorSpace(config.Nx * config.Ny * 2)
+                experiment.fom.visualize(space2.from_numpy(sol.reshape(-1, 1)))
+                experiment.fom.visualize(space2.from_numpy((reduced_basis @ (reduced_basis.T @ sol)).reshape(-1, 1)))
+                experiment.fom.visualize(space2.from_numpy((sol - reduced_basis @ (reduced_basis.T @ sol)).reshape(-1, 1)))
+
             errors[i, 0] = np.linalg.norm(sol_dec.reshape(-1, 1) - sol.reshape(-1, 1)) ** 2
             errors_den[i, 0] = np.linalg.norm(u_test[:, i] + initial_state[:, 0]) ** 2
 
@@ -110,8 +118,9 @@ if __name__ == '__main__':
     parser.add_argument('--mu_val', type=float, default=0.6, help='Test parameter value mu (default: 0.6)')
     parser.add_argument('--p_red',type=int,nargs='+',default=[4, 8, 12, 16],metavar='P',help='Reduced dimension(s) to evaluate (default: 4 8 12 16)')
     parser.add_argument('--rb_size',type=int,default=50,help='Size of the reduced basis to load (default: 50)')
-    parser.add_argument('--centered',action='store_true',default=False,help='Load the centered reduced basis. Default: uncentered.',)
+    parser.add_argument('--centered',action='store_true',default=False,help='Load the centered reduced basis. Default: uncentered.')
+    parser.add_argument('--visualize', action='store_true', default=False, help='Enable visualization during timestepping (default: False).')
     parser.add_argument('--write_csv',action='store_true',default=False,help='Write projection errors to a CSV file.')
 
     args = parser.parse_args()
-    proj_error_pod(mu_val=args.mu_val, p_red_values=args.p_red, rb_size=args.rb_size, centered=args.centered, write_csv=args.write_csv)
+    proj_error_pod(mu_val=args.mu_val, p_red_values=args.p_red, rb_size=args.rb_size, centered=args.centered, visualize=args.visualize, write_csv=args.write_csv)

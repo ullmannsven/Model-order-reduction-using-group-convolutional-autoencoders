@@ -15,7 +15,7 @@ class Scaler:
         self.Nx = dims[1]
         self.Ny = dims[2]
 
-        with open(f'{filename}_{self.Nx}x{self.Ny}_new_idea', "rb") as f:
+        with open(f'{filename}_{self.Nx}x{self.Ny}', "rb") as f:
             scaling = pickle.load(f)
 
         self.min_q = scaling["min"]["q"]

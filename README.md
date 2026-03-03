@@ -205,10 +205,12 @@ All test scripts that use a trained autoencoder share the same `AE_REGISTRY`, wh
 
 | `--ae_name` | Network class | Group |
 |-------------|---------------|-------|
-| `RotationUpsamplingGCNN_C4` | `RotationUpsamplingGCNNAutoencoder2D` | C4 (4 rotations) |
+| `RotationUpsamplingGCNN` | `RotationUpsamplingGCNNAutoencoder2D` | C4 (4 rotations) |
 | `RotationUpsamplingGCNN_C8` | `RotationUpsamplingGCNNAutoencoder2D` | C8 (8 rotations) |
 | `UpsamplingCNN` | `UpsamplingCNNAutoencoder2D` | None (baseline) |
-| `TrivialUpsamplingGCNN` | `TrivialUpsamplingGCNNAutoencoder2D` | Trivial |
+| `UpsamplingCNN_Symplectic` | `UpsamplingCNNAutoencoder2D` | None (baseline) |
+| `RotationUpsamplingGCNN_bothdir` | `RotationUpsamplingGCNNAutoencoder2D` | C4 (4 rotations) | 
+| `UpsamplingCNN_bothdir` | `UpsamplingGNNAutoencoder2D` | None (baseline) | 
 
 Checkpoint files are expected to follow the naming convention:
 ```

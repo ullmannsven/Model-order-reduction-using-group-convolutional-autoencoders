@@ -3,7 +3,7 @@
 Test 2D wave equation with manifold-Galerkin method.
 
 Usage:
-    python test_wave_manifold_galerkin.py --ae_name AE_NAME [--mu_val MU]
+    python test_wave_manifold_galerkin.py --ae_name AE_NAME [--xflow] [--mu_val MU]
                                       [--p_red N] [--scaled_data]
                                       [--symplectic] [--visualize]
 
@@ -15,6 +15,7 @@ Arguments:
                         UpsamplingCNN               -> UpsamplingCNNAutoencoder2D
                         TrivialUpsamplingGCNN       -> TrivialUpsamplingGCNNAutoencoder2D
 
+    --xflow         Use x-flow formulation (default: True).
     --mu_val        Test parameter value (default: 0.8)
     --p_red         Reduced dimension (default: 8)
     --scaled_data   Use scaled data (default: True). 
@@ -27,8 +28,8 @@ Checkpoint naming convention:
     wave_2D_{ae_name}_p_{p_red}_{Nx}x{Ny}.pkl
 
 Examples:
-    # C8 network, default settings
-    python test_wave_manifold_galerkin.py --ae_name RotationUpsamplingGCNN_C8
+    # C4 network, default settings
+    python test_wave_manifold_galerkin.py --ae_name RotationUpsamplingGCNN_C4
 
     # CNN baseline, different mu
     python test_wave_manifold_galerkin.py --ae_name UpsamplingCNN --mu_val 0.6 --p_red 12
@@ -49,11 +50,7 @@ from pymor.basic import *
 import torch
 from escnn import gspaces
 
-from equiv_networks.autoencoders import (
-    RotationUpsamplingGCNNAutoencoder2D,
-    UpsamplingCNNAutoencoder2D,
-    TrivialUpsamplingGCNNAutoencoder2D,
-)
+from equiv_networks.autoencoders import RotationUpsamplingGCNNAutoencoder2D, UpsamplingCNNAutoencoder2D
 from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
 from equiv_networks.models.manifold_galerkin_utilities_IMR import Galerkin_quasi_newton
 from scaling.scale import Scaler
@@ -61,7 +58,7 @@ from experiment_setup import WaveExperiment, WaveExperimentConfig
 
 
 AE_REGISTRY = {
-    'RotationUpsamplingGCNN_C4': {
+    'RotationUpsamplingGCNN': {
         'class': RotationUpsamplingGCNNAutoencoder2D,
         'gspace': lambda: gspaces.rot2dOnR2(N=4),
     },
@@ -73,21 +70,29 @@ AE_REGISTRY = {
         'class': UpsamplingCNNAutoencoder2D,
         'gspace': None,
     },
-    'TrivialUpsamplingGCNN': {
-        'class': TrivialUpsamplingGCNNAutoencoder2D,
+    'UpsamplingCNN_Symplectic': {
+        'class': UpsamplingCNNAutoencoder2D,
         'gspace': None,
     },
+    'RotationUpsamplingGCNN_bothdir': {
+        'class': RotationUpsamplingGCNNAutoencoder2D,
+        'gspace': lambda: gspaces.rot2dOnR2(N=4),
+    }, 
+    'UpsamplingCNN_bothdir': {
+        'class': UpsamplingCNNAutoencoder2D,
+        'gspace': None,
+    }
 }
 
 
-def test_wave_manifold_galerkin(ae_name, mu_val=0.8, p_red=8, scaled_data=True, symplectic=False, visualize=False, save_data=False):
+def test_wave_manifold_galerkin(ae_name, mu_val=0.8, xflow=True, p_red=8, scaled_data=True, symplectic=False, visualize=False, save_data=False):
     """Test 2D wave equation with manifold-Galerkin method."""
 
     if ae_name not in AE_REGISTRY:
         raise ValueError(f"Unknown ae_name '{ae_name}'. Choose from: {list(AE_REGISTRY.keys())}")
     ae_entry = AE_REGISTRY[ae_name]
 
-    config = WaveExperimentConfig(x_flow=False, nt=500, timestep_factor=1, visualize_q=visualize)
+    config = WaveExperimentConfig(x_flow=xflow, nt=500, timestep_factor=1, visualize_q=visualize)
     experiment = WaveExperiment(config)
 
     Nx = config.Nx
@@ -96,6 +101,9 @@ def test_wave_manifold_galerkin(ae_name, mu_val=0.8, p_red=8, scaled_data=True, 
 
     script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
     filepaths = experiment.get_filepath_patterns(script_dir)
+
+    if "Symplectic" in ae_name:
+        assert symplectic == True, "Symplectic integration must be enabled for Symplectic autoencoder variants."
 
     stem = f"wave_2D_{ae_name}_p_{p_red}_{grid}"
     nn_save_filepath = filepaths['checkpoints'] / f"{stem}.pt"
@@ -189,6 +197,7 @@ if __name__ == '__main__':
         epilog=__doc__,
     )
     parser.add_argument('--ae_name', type=str, required=True, choices=list(AE_REGISTRY.keys()), help='Autoencoder architecture name')
+    parser.add_argument('--xflow', action='store_true', default=True, help='Use x-flow formulation (default: True)')
     parser.add_argument('--mu_val', type=float, default=0.8, help='Test parameter value mu (default: 0.8)')
     parser.add_argument('--p_red', type=int, default=8, help='Reduced dimension (default: 8)')
     parser.add_argument('--scaled_data', action=argparse.BooleanOptionalAction, default=True, help='Use scaled data (default: True)')
@@ -197,4 +206,4 @@ if __name__ == '__main__':
     parser.add_argument('--save_data', action='store_true', default=False, help='Save data to CSV file')
 
     args = parser.parse_args()
-    test_wave_manifold_galerkin(ae_name=args.ae_name, mu_val=args.mu_val, p_red=args.p_red, scaled_data=args.scaled_data, symplectic=args.symplectic, visualize=args.visualize, save_data=args.save_data)
+    test_wave_manifold_galerkin(ae_name=args.ae_name, xflow=args.xflow, mu_val=args.mu_val, p_red=args.p_red, scaled_data=args.scaled_data, symplectic=args.symplectic, visualize=args.visualize, save_data=args.save_data)
