@@ -135,7 +135,7 @@ def proj_error_AE(ae_name, p_red_values, mu_val=0.6, scaled_data=True, rotated=F
                 sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.double, device="cpu"))[0].detach().cpu().numpy()
                 sol_rot_dec = scaler.prolongate(sol_rot_dec)
 
-            if visualize and i == 100:
+            if visualize and i == 300:
                 space = NumpyVectorSpace(config.Nx * config.Ny * 2)
                 experiment.fom.visualize(space.from_numpy(sol_rot_dec.reshape(-1, 1) + u_ref))
                 experiment.fom.visualize(space.from_numpy(u_test[:, i].reshape(-1, 1) + initial_state))

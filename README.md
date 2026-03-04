@@ -103,7 +103,7 @@ Checkpoints of the selected autoencoders for different AE setups and reduced bas
 Results when using CL as projection method as well as CL-SG as reduction method. Contains projections error, reduction errors as well as the computed RB using CL (once centered and once uncentered). 
 
 ### `tests/90wave/mor_results/` 
-Results when using different autoencoder variants. 
+Results regarding the reduction error when using different autoencoder variants. Stored as csv files, similar to results in `AE_results`. 
 
 ### `tests/90wave/network_parameters/`
 Contains the network parameters that corresponds to the checkpoints in `tests/90wave/checkpoints`. 
@@ -222,7 +222,7 @@ network_parameters/wave_2D_{ae_name}_p_{p_red}_{Nx}x{Ny}.pkl
 
 ## Dependencies
 
-- [pyMOR](https://pymor.org/) — model order reduction framework (FOM, reducers, symplectic methods)
-- [ESCNN](https://github.com/QUVA-Lab/escnn) — equivariant steerable CNNs (group convolutions)
-- [PyTorch](https://pytorch.org/) — neural network training and inference
-- NumPy, SciPy — numerical computations
+- [pyMOR](https://pymor.org/): model order reduction framework (FOM, reducers, symplectic methods)
+- [ESCNN](https://github.com/QUVA-Lab/escnn): equivariant steerable CNNs (group convolutions)
+- [PyTorch](https://pytorch.org/):neural network training and inference
+- [NumPy](https://numpy.org/), [SciPy](https://scipy.org/): numerical computations
