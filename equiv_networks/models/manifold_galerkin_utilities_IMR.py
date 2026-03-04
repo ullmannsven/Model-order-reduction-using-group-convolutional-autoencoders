@@ -55,15 +55,13 @@ def JT_G_J(G):
     n = m // 2
     N = k // 2
 
-    # 1) Right-multiply by J_{2N}: [G_q G_p] -> [-G_p G_q]
     tmp = np.empty_like(G)
-    tmp[:, :N]  = -G[:, N:]   # first N columns = -G_p
-    tmp[:, N:]  =  G[:, :N]   # last N columns  =  G_q
+    tmp[:, :N]  = -G[:, N:] 
+    tmp[:, N:]  =  G[:, :N]   
 
-    # 2) Left-multiply by J_{2n}^T: [H_q; H_p] -> [-H_p; H_q]
     out = np.empty_like(G)
-    out[:n, :]  = -tmp[n:, :]  # top n rows  = -H_p
-    out[n:, :]  =  tmp[:n, :]  # bottom n    =  H_q
+    out[:n, :]  = -tmp[n:, :]  
+    out[n:, :]  =  tmp[:n, :]  #
 
     return out
 
@@ -177,13 +175,6 @@ def Galerkin_quasi_newton(model, xn_1, mu, dt, fom, u_ref, scaled_data, symplect
 
     while res_norm > tol:
         J_approx = Jacobian_approximate_Galerkin_residuum(model, x_new, xn_1, mu, dt, fom, u_ref, scaled_data, symplectic)
-        
-        ## DIAGNOSTIC: Compare with exact Jacobian
-        #if step < 3:  # Only check first few iterations
-        #    J_exact = compute_exact_jacobian_fd(model, x_new, xn_1, mu, dt, fom, u_ref, scaled_data)
-        #    jac_error = np.linalg.norm(J_approx - J_exact) / np.linalg.norm(J_exact)
-        #    print(f'  Jacobian approximation error: {jac_error:.6e}')
-
         p = np.linalg.solve(J_approx, -res.T).T
         alpha, res, res_norm = Galerkin_line_search(model, x_new, p, xn_1, mu, dt, fom, u_ref, scaled_data, symplectic)
         x_new = x_new + alpha * p
@@ -191,47 +182,4 @@ def Galerkin_quasi_newton(model, xn_1, mu, dt, fom, u_ref, scaled_data, symplect
 
         print(f'Step: {step} Residual norm: {res_norm}')
 
-    return x_new
-
-
-def Galerkin_quasi_newton_bfgs(model, xn_1, mu, dt, fom, u_ref, scaled_data, symplectic, tol=1e-8, max_iter=20):
-    """Quasi-Newton with BFGS updates."""
-    model.network.decoder.eval()
-    x_new = xn_1
-    res = Galerkin_residuum(model, x_new, xn_1, mu, dt, fom, u_ref, scaled_data)
-    res_norm = np.linalg.norm(res)
-    
-    # Initial Jacobian approximation
-    B = Jacobian_approximate_Galerkin_residuum(model, x_new, xn_1, mu, dt, fom, u_ref, scaled_data, symplectic)
-    
-    step = 0
-    while res_norm > tol and step < max_iter:
-        # Solve for Newton direction
-        p = np.linalg.solve(B, -res.T).T
- 
-        # Line search
-        alpha, res_new, res_norm_new = Galerkin_line_search(model, x_new, p, xn_1, mu, dt, fom, u_ref, scaled_data, symplectic)
- 
-        # Compute updates for BFGS
-        s = alpha * p  # Step taken: x_{k+1} - x_k
-        y = (res_new - res).T  # Change in residual: r_{k+1} - r_k
-        
-        # BFGS update: B_{k+1} = B_k + (y y^T)/(y^T s) - (B s)(B s)^T / (s^T B s)
-        # Only update if curvature condition is satisfied
-        if s @ y > 1e-10:
-            Bs = B @ s.T
-            B = B + (y @ y.T) / (s @ y) - (Bs @ Bs.T) / (s @ Bs)
-        else:
-            print("  BFGS: Skipping update (curvature condition not satisfied)")
-            # Recompute Jacobian if BFGS fails
-            B = Jacobian_approximate_Galerkin_residuum(model, x_new, xn_1, mu, dt, fom, u_ref, scaled_data, symplectic)
- 
-        # Update state
-        x_new = x_new + s
-        res = res_new
-        res_norm = res_norm_new
-        step += 1
-        
-        print(f'Step: {step} Residual norm: {res_norm:.6e}')
-    
     return x_new

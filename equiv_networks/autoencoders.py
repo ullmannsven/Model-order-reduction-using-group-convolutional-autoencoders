@@ -1,4 +1,6 @@
 import torch.nn as nn
+import torch
+import torch.nn.functional as F
 
 from escnn import gspaces
 from escnn.nn import R2Conv, R2ConvTransposed, GeometricTensor, Linear, FieldType, ELU, R2Upsampling
@@ -482,7 +484,7 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
                         in_type  = FieldType(self.gspace, encoder_channels[i-1] * [self.gspace.regular_repr])
                         out_type = FieldType(self.gspace, encoder_channels[i] * [self.gspace.regular_repr])
                     
-                    self.conv_layers.extend([R2Conv(in_type, out_type, kernel_size=k, padding=p, stride=s, padding_mode='circular', bias=True)]) #TODO das ist komisch, muss geändert werden
+                    self.conv_layers.extend([R2Conv(in_type, out_type, kernel_size=k, padding=p, stride=s, padding_mode='circular', bias=True)])
                     self.conv_layers.extend([self.activation_function(out_type, inplace=False)])
 
                     # track spatial size
@@ -607,10 +609,6 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
 
                 # upsample to full size
                 for i, layer in enumerate(self.conv_layers):
-                    #if i == len(self.conv_layers) - 1:
-                    #    # last layer: output is trivial type, so we return tensor
-                    #    print("last layer, output is trivial type")
-                    #    result_second_to_last = x.tensor
                     x = layer(x)
 
                 return x.tensor
@@ -646,10 +644,6 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
         
         Returns:
             nn.Module: A pure PyTorch autoencoder with the same functionality
-        
-        Note:
-            - The model must be in eval mode before exporting
-            - Equivariance is preserved in the exported model
         """        
         # Set model to eval mode (required for export)
         self.eval()
@@ -781,16 +775,6 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
         exported_model = ExportedAutoencoder(exported_encoder, exported_decoder)
         exported_model.eval()
         exported_model.double()
-        
-        print("\n" + "="*60)
-        print("Export Summary:")
-        print("="*60)
-        print("✓ Model exported successfully!")
-        print("✓ Equivariance is preserved in exported model")
-        print("✓ Model set to eval mode")
-        print("\nNote: Some layers (R2Upsampling, activations) don't support")
-        print("export but are already efficient PyTorch operations.")
-        print("="*60 + "\n")
 
         return exported_model
 
@@ -873,7 +857,7 @@ class TrivialUpsamplingGCNNAutoencoder2D(nn.Module):
                         in_type  = FieldType(self.gspace, encoder_channels[i-1] * [self.gspace.trivial_repr])
                         out_type = FieldType(self.gspace, encoder_channels[i] * [self.gspace.trivial_repr])
                     
-                    self.conv_layers.extend([R2Conv(in_type, out_type, kernel_size=k, padding=p, stride=s, padding_mode='circular', bias=True)]) #TODO das ist komisch, muss geändert werden
+                    self.conv_layers.extend([R2Conv(in_type, out_type, kernel_size=k, padding=p, stride=s, padding_mode='circular', bias=True)])
                     self.conv_layers.extend([self.activation_function(out_type, inplace=False)])
 
                     # track spatial size
@@ -1027,29 +1011,26 @@ class TrivialUpsamplingGCNNAutoencoder2D(nn.Module):
         return self.decoder(x)
     
 
-################################################### equiv AE files ########################################################
+#############################################################################
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 
-def _as_list(v, n: int):
+def _as_list(v, n):
     if isinstance(v, (list, tuple)):
         assert len(v) == n, f"Expected {n} values, got {len(v)}"
         return list(v)
     return [int(v)] * n
 
 
-def _rot90_kernel(w: torch.Tensor, k: int):
+def _rot90_kernel(w, k):
     k = k % 4
     if k == 0:
         return w
     return torch.rot90(w, k, dims=(-2, -1))
 
 
-def _circular_pad2d(x: torch.Tensor, padding: int):
+def _circular_pad2d(x, padding):
     if padding == 0:
         return x
     return F.pad(x, (padding, padding, padding, padding), mode="circular")
@@ -1118,8 +1099,8 @@ class C4Conv2d_RegularToRegular(nn.Module):
             y_r = None
             for s in range(4):
                 delta = (s - r) % 4
-                w = self.weight[delta]          # (cout_mult, cin_mult, k, k)
-                w_rs = _rot90_kernel(w, r)      # rotate by output orientation
+                w = self.weight[delta]        
+                w_rs = _rot90_kernel(w, r)     
                 contrib = F.conv2d(
                     x_orient[s], w_rs,
                     bias=None,
@@ -1201,8 +1182,8 @@ class C4ConvTranspose2d_RegularToRegular(nn.Module):
             y_r = None
             for s in range(4):
                 delta = (s - r) % 4
-                w = self.weight[delta]              # (cout_mult, cin_mult, k, k)
-                w_t = w.permute(1, 0, 2, 3)         # (cin_mult, cout_mult, k, k) for conv_transpose2d
+                w = self.weight[delta]             
+                w_t = w.permute(1, 0, 2, 3)         
                 w_rs = _rot90_kernel(w_t, r)
                 contrib = F.conv_transpose2d(
                     x_orient[s], w_rs,
@@ -1241,7 +1222,7 @@ class C4LinearRegularToRegular(nn.Module):
             y_r = None
             for s in range(4):
                 delta = (s - r) % 4
-                W = self.weight[delta]  # (out_mult, in_mult)
+                W = self.weight[delta]
                 contrib = xs[s] @ W.t()
                 y_r = contrib if y_r is None else (y_r + contrib)
             if self.bias is not None:
@@ -1365,8 +1346,8 @@ class RotationUpsamplingGCNN2D_TorchOnly(nn.Module):
                 for layer in self.conv_layers:
                     x = layer(x)
 
-                x = self.enc_global_act(self.enc_global(x))  # (B, mult*4, 1, 1)
-                x = x.view(x.shape[0], -1)                   # (B, mult*4)
+                x = self.enc_global_act(self.enc_global(x))
+                x = x.view(x.shape[0], -1)                  
 
                 for layer in self.fc_layers:
                     x = layer(x)
