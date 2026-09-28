@@ -115,7 +115,7 @@ def train_wave_2D(ae_name, p_red=12, x_flow=True, both_directions=False,
 
     print('Reshaped snapshots shape (T, C, H, W):', snapshots_np.shape)
 
-    scaling_filename = script_dir / f"scaling_grid_{Nx}x{Ny}_new_idea"
+    scaling_filename = script_dir / "scaling" / f"scaling_grid_{Nx}x{Ny}"
     with open(scaling_filename, 'wb') as f:
         pickle.dump({
             'min': {'q': float(snapshots_np[:, 0].min()), 'p': float(snapshots_np[:, 1].min())},
