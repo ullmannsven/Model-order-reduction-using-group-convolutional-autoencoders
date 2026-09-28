@@ -3,7 +3,7 @@
 Compute projection errors for a trained Autoencoder on the wave equation experiment.
 
 Usage:
-    python proj_error_AE.py [--ae_name AE_NAME] [--xflow] [--p_red P [P ...]] [--mu_val MU] [--scaled_data] [--visualize] [--write_csv]
+    python proj_error_AE.py [--ae_name AE_NAME] [--xflow] [--p_red P [P ...]] [--timestamp TIMESTAMP] [--mu_val MU] [--scaled_data] [--visualize] [--write_csv]
 
 Arguments:
     --ae_name       Name of the autoencoder architecture. Determines which network
@@ -15,6 +15,7 @@ Arguments:
                         TrivialUpsamplingGCNN       -> TrivialUpsamplingGCNNAutoencoder2D
     --xflow         Enable xflow (default: True).
     --p_red         One or more reduced dimensions to evaluate (default: 4 8 12 16)
+    --timestamp     Optional saved-run timestamp; appends _t_TIMESTAMP to both input filenames.
     --mu_val        Test parameter value (default: 0.8)
     --scaled_data   Use scaled data (default: True)
     --visualize     Enable visualization during timestepping (default: False)
@@ -80,7 +81,7 @@ AE_REGISTRY = {
 }
 
 
-def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True, visualize=False, write_csv = False):
+def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True, visualize=False, write_csv = False, timestamp=None):
 
     config = WaveExperimentConfig(x_flow=xflow, visualize_q=True, nt=500, timestep_factor=1)
     experiment = WaveExperiment(config)
@@ -104,6 +105,8 @@ def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True,
     for p_red in p_red_values:
         print(f"\n--- p_red = {p_red} ---")
         stem = f"wave_2D_{ae_name}_p_{p_red}_{grid}"
+        if timestamp:
+            stem += f"_t_{timestamp}"
         nn_save_filepath = checkpoint_dir / f"{stem}.pt"
         network_parameters_file = script_dir / "network_parameters" / f"{stem}.pkl"
 
@@ -210,5 +213,7 @@ if __name__ == '__main__':
     parser.add_argument('--visualize', action='store_true', default=False, help='Enable visualization during timestepping (default: False)')
     parser.add_argument('--write_csv', action='store_true', default=False, help='Write projection errors to a CSV file')
     
+    parser.add_argument('--timestamp', type=str, default=None, help='Saved-run timestamp (e.g. 09_02_2026-11_14_30); appends _t_TIMESTAMP to checkpoint and network-parameter filenames')
+
     args = parser.parse_args()
-    proj_error_AE(ae_name=args.ae_name, xflow=args.xflow, p_red_values=args.p_red, mu_val=args.mu_val, scaled_data=args.scaled_data, visualize=args.visualize, write_csv=args.write_csv)
+    proj_error_AE(ae_name=args.ae_name, xflow=args.xflow, p_red_values=args.p_red, mu_val=args.mu_val, scaled_data=args.scaled_data, visualize=args.visualize, write_csv=args.write_csv, timestamp=args.timestamp)
