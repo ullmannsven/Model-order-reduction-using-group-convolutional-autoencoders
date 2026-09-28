@@ -88,7 +88,7 @@ def train_wave_2D(ae_name, p_red=12, number_of_epochs=1000, learning_rate=0.0005
     q_flat = data_mat[:, :n_space]
     p_flat = data_mat[:, n_space:]
 
-    snapshots_np = np.empty((T_total, 2, Nx, Ny), dtype=np.float64)
+    snapshots_np = np.empty((T_total, 2, Nx, Ny), dtype=np.float32)
     for t in range(T_total):
         snapshots_np[t, 0, :, :] = q_flat[t, :].reshape(Nx, Ny)
         snapshots_np[t, 1, :, :] = p_flat[t, :].reshape(Nx, Ny)
@@ -106,7 +106,7 @@ def train_wave_2D(ae_name, p_red=12, number_of_epochs=1000, learning_rate=0.0005
         }, f)
 
     scaler = Scaler(dims=dims)
-    snapshots_scaled = scaler.scale(torch.as_tensor(snapshots_np, dtype=torch.double, device="cpu"))
+    snapshots_scaled = scaler.scale(torch.as_tensor(snapshots_np, dtype=torch.float32, device="cpu"))
 
     snapshots = [{'u_full_step_shifted': snapshots_scaled[t]} for t in range(T_total)]
 

@@ -129,8 +129,8 @@ def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True,
         model.load_neural_network(path=nn_save_filepath)
         model.network.eval()
 
-        mu_tag = f"{mu_val:.2f}".replace('.', '')
-        filename = filepaths['snapshots'] / f"snapshots_{grid}_{mu_tag}_nt_{config.nt}"
+        #mu_tag = f"{mu_val:.2f}".replace('.', '')
+        filename = filepaths['snapshots'] / f"snapshots_{grid}_{mu_val}_nt_{config.nt}"
         with open(filename, 'rb') as f:
             arr = pickle.load(f)['snapshots']
         u_test = np.vstack(arr).T
@@ -156,13 +156,13 @@ def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True,
             sol_rot = u_test[:, i]
 
             if scaled_data:
-                sol_rot_scaled = torch.as_tensor(scaler.scale(scaler.restrict(sol_rot)), dtype=torch.double, device="cpu").unsqueeze(0)
+                sol_rot_scaled = torch.as_tensor(scaler.scale(scaler.restrict(sol_rot)), dtype=torch.float32, device="cpu").unsqueeze(0)
                 sol_rot_enc = model.network.encode(sol_rot_scaled).detach().cpu().numpy()
-                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.double, device="cpu"))[0].detach().cpu().numpy()
+                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.float32, device="cpu"))[0].detach().cpu().numpy()
                 sol_rot_dec = scaler.prolongate(scaler.unscale(sol_rot_dec))
             else:
-                sol_rot_enc = model.network.encode(torch.as_tensor(scaler.restrict(sol_rot), dtype=torch.double, device="cpu").unsqueeze(0)).detach().cpu().numpy()
-                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.double, device="cpu"))[0].detach().cpu().numpy()
+                sol_rot_enc = model.network.encode(torch.as_tensor(scaler.restrict(sol_rot), dtype=torch.float32, device="cpu").unsqueeze(0)).detach().cpu().numpy()
+                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.float32, device="cpu"))[0].detach().cpu().numpy()
                 sol_rot_dec = scaler.prolongate(sol_rot_dec)
 
             if visualize and i == 100:

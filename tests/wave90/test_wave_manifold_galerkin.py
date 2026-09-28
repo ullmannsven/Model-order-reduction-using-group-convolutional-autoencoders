@@ -154,7 +154,7 @@ def test_wave_manifold_galerkin(ae_name, mu_val=0.8, xflow=True, p_red=8, scaled
         u_new = Galerkin_quasi_newton(model, u_n1, mu_test, config.dt, experiment.fom, u_ref, scaled_data, symplectic=symplectic, tol=1e-8)
         u_approx.append(u_new)
 
-        decode_u_new = model.network.decode(torch.as_tensor(u_new, dtype=torch.double, device="cpu"))[0].detach().cpu().numpy()
+        decode_u_new = model.network.decode(torch.as_tensor(u_new, dtype=torch.float32, device="cpu"))[0].detach().cpu().numpy()
         if scaled_data:
             decode_u_new = scaler.prolongate(scaler.unscale(decode_u_new))
         else:

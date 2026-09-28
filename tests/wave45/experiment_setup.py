@@ -203,12 +203,12 @@ class WaveExperiment:
         
         # Encode and decode zero state
         if scaled_data:
-            zero_tensor = torch.as_tensor(model.scaler.scale(model.scaler.restrict(zero_state)), dtype=torch.double, device="cpu").unsqueeze(0)
+            zero_tensor = torch.as_tensor(model.scaler.scale(model.scaler.restrict(zero_state)), dtype=torch.float32, device="cpu").unsqueeze(0)
         else:
-            zero_tensor = torch.as_tensor(model.scaler.restrict(zero_state), dtype=torch.double, device="cpu").unsqueeze(0)
+            zero_tensor = torch.as_tensor(model.scaler.restrict(zero_state), dtype=torch.float32, device="cpu").unsqueeze(0)
         
         u_0_hat = model.network.encode(zero_tensor).detach().cpu().numpy()
-        decoded_u_0_hat = model.network.decode(torch.as_tensor(u_0_hat, dtype=torch.double, device="cpu"))[0, :, :, :].detach().cpu().numpy()
+        decoded_u_0_hat = model.network.decode(torch.as_tensor(u_0_hat, dtype=torch.float32, device="cpu"))[0, :, :, :].detach().cpu().numpy()
         if scaled_data:
             decoded_u_0_hat = model.scaler.prolongate(model.scaler.unscale(decoded_u_0_hat))
         else:

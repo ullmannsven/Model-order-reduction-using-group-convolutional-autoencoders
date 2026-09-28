@@ -615,7 +615,7 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
 
         self.encoder = Encoder(self)
         self.decoder = Decoder(self)
-        #self.double()
+        #self.float()
 
     def forward(self, x):
         encoded = self.encode(x)
@@ -988,7 +988,7 @@ class TrivialUpsamplingGCNNAutoencoder2D(nn.Module):
 
         self.encoder = Encoder(self)
         self.decoder = Decoder(self)
-        #self.double()
+        #self.float()
 
     def forward(self, x):
         encoded = self.encode(x)

@@ -129,13 +129,13 @@ def proj_error_AE(ae_name, p_red_values, mu_val=0.6, scaled_data=True, rotated=F
             sol_rot = u_test[:, i]
 
             if scaled_data:
-                sol_rot_scaled = torch.as_tensor(scaler.scale(scaler.restrict(sol_rot)), dtype=torch.double, device="cpu").unsqueeze(0)
+                sol_rot_scaled = torch.as_tensor(scaler.scale(scaler.restrict(sol_rot)), dtype=torch.float32, device="cpu").unsqueeze(0)
                 sol_rot_enc = model.network.encode(sol_rot_scaled).detach().cpu().numpy()
-                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.double, device="cpu"))[0].detach().cpu().numpy()
+                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.float32, device="cpu"))[0].detach().cpu().numpy()
                 sol_rot_dec = scaler.prolongate(scaler.unscale(sol_rot_dec))
             else:
-                sol_rot_enc = model.network.encode(torch.as_tensor(scaler.restrict(sol_rot), dtype=torch.double, device="cpu").unsqueeze(0)).detach().cpu().numpy()
-                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.double, device="cpu"))[0].detach().cpu().numpy()
+                sol_rot_enc = model.network.encode(torch.as_tensor(scaler.restrict(sol_rot), dtype=torch.float32, device="cpu").unsqueeze(0)).detach().cpu().numpy()
+                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.float32, device="cpu"))[0].detach().cpu().numpy()
                 sol_rot_dec = scaler.prolongate(sol_rot_dec)
 
             if visualize and i == 100:

@@ -59,7 +59,7 @@ def compute_pod_basis(modes=50, centered= False):
     p_flat = data_mat[:, n_space:]
 
     # Reshape each time slice to images and stack as (T, 2, Ny, Nx)
-    snapshots_np = np.empty((T_total, 2, Ny, Nx), dtype=np.float64)
+    snapshots_np = np.empty((T_total, 2, Ny, Nx), dtype=np.float32)
     for t in range(T_total):
         q_img = q_flat[t, :].reshape(Ny, Nx)
         p_img = p_flat[t, :].reshape(Ny, Nx)
