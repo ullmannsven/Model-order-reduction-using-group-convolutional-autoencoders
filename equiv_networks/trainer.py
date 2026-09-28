@@ -3,6 +3,7 @@
 import torch
 import torch.utils as utils
 import torch.nn as nn
+from torch.amp import autocast, GradScaler 
 
 class ProgressTraining:
 
@@ -83,6 +84,8 @@ class Trainer:
         
         self.model = model
         self.model.network.to(self.device)
+        self.gradscaler = GradScaler() if self.device.type == "cuda" else None
+        self.global_step = 0
 
         if optimizer:
             self.optimizer = optimizer(self.model.network.parameters(), lr=learning_rate, **parameters_optimizer)
@@ -162,7 +165,8 @@ class Trainer:
         print('Training of neural network:')
         print('===========================')
         print()
-
+        
+        print("which device", self.device) 
         if self.device.type == "cuda":
             workers = 8
         else: 
@@ -338,6 +342,7 @@ class Trainer:
 
         # perform actual training iteration
         for epoch in range(number_of_epochs):
+            print("HALLO welche epoch", epoch, self.device) 
             losses = {}
             for phase in phases: # eiter 'train' or 'val'
                 # set state of network according to current phase (training or validation)
@@ -351,39 +356,33 @@ class Trainer:
                 # iterate over all batches in the respective phase
                 for batch in dataloaders[phase]:
                     
-                    inputs  = torch.stack(batch['inputs']).to(self.device, non_blocking=(self.device.type=="cuda"))
-                    targets = torch.stack(batch['targets']).to(self.device, non_blocking=(self.device.type=="cuda"))        
+                    inputs  = batch['inputs'].to(self.device, non_blocking=(self.device.type=="cuda"))
+                    targets = batch['targets'].to(self.device, non_blocking=(self.device.type=="cuda"))        
 
                     with torch.set_grad_enabled(phase == 'train'):
-                        
-                        # define closure
-                        def closure():
-                            if torch.is_grad_enabled():
-                                self.optimizer.zero_grad()
-                            
+                        with autocast("cuda", enabled=(self.device.type == "cuda")):
                             outputs = self.model.network(inputs)
+                            # compute loss
                             encoded_inputs = None
                             if self.loss_mode == "symplectic":
-                                with torch.no_grad():
-                                    encoded_inputs = self.model.network.encode(inputs)
-                            
+                                encoded_inputs = self.model.network.encoder(inputs)
+
                             loss = self._compute_loss(outputs, targets, inputs, encoded_inputs=encoded_inputs)
 
-                            # back propagate loss if necessary
-                            if loss.requires_grad:
-                                loss.backward()
-                            
-                            return loss
+                            # perform step of optimizer if in training phase
+                            if phase == 'train':
+                                self.optimizer.zero_grad()
 
-                        # perform step of optimizer if in training phase
-                        if phase == 'train':
-                            self.optimizer.step(closure)
+                                if self.gradscaler is not None:
+                                    self.gradscaler.scale(loss).backward()
+                                    self.gradscaler.step(self.optimizer)
+                                    self.gradscaler.update()
+                                    self.global_step += 1
+                                else:
+                                    loss.backward()
+                                    self.optimizer.step()
+                                    self.global_step += 1
 
-                        # perform step of learning rate scheduler if necessary
-                        if self.lr_scheduler and phase == 'train':
-                            self.lr_scheduler.step()
-
-                        loss = closure()
 
                     # update current loss
                     running_loss += loss.item() * len(batch["inputs"])
@@ -420,7 +419,7 @@ class Trainer:
 
         Parameters
         ----------
-        number_of_training_samples
+        number_of_training_samples:
             Number of training samples used during training the network.
         number_of_epochs
             Maximum number of training epochs to perform.
@@ -472,4 +471,3 @@ class Trainer:
         else:
             print('=> No validation phase used')
 
-        print()

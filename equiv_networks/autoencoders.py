@@ -774,7 +774,7 @@ class RotationUpsamplingGCNNAutoencoder2D(nn.Module):
         # Create exported autoencoder
         exported_model = ExportedAutoencoder(exported_encoder, exported_decoder)
         exported_model.eval()
-        exported_model.double()
+        exported_model.float()
 
         return exported_model
 

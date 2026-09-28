@@ -85,7 +85,7 @@ def train_wave_2D(ae_name, p_red=12, x_flow=True, both_directions=False,
     os.makedirs(base_dir, exist_ok=True)
 
     arrays = []
-    for mu in [0.5, 0.75, 1]:
+    for mu in [0.5, 0.75, 1.0]:
         filename = base_dir / f'snapshots_{Nx}x{Ny}_{mu}_nt_{config.nt}'
         with open(filename, 'rb') as f:
             arr = pickle.load(f)['snapshots']
@@ -108,7 +108,7 @@ def train_wave_2D(ae_name, p_red=12, x_flow=True, both_directions=False,
     q_flat = data_mat[:, :n_space]
     p_flat = data_mat[:, n_space:]
 
-    snapshots_np = np.empty((T_total, 2, Nx, Ny), dtype=np.float64)
+    snapshots_np = np.empty((T_total, 2, Nx, Ny), dtype=np.float32)
     for t in range(T_total):
         snapshots_np[t, 0, :, :] = q_flat[t, :].reshape(Nx, Ny)
         snapshots_np[t, 1, :, :] = p_flat[t, :].reshape(Nx, Ny)
@@ -124,7 +124,7 @@ def train_wave_2D(ae_name, p_red=12, x_flow=True, both_directions=False,
         }, f)
 
     scaler = Scaler(dims=dims)
-    snapshots_scaled = scaler.scale(torch.as_tensor(snapshots_np, dtype=torch.double, device="cpu"))
+    snapshots_scaled = scaler.scale(torch.as_tensor(snapshots_np, dtype=torch.float32, device="cpu"))
 
     snapshots = [{'u_full_step_shifted': snapshots_scaled[t]} for t in range(T_total)]
 
@@ -161,12 +161,13 @@ def train_wave_2D(ae_name, p_red=12, x_flow=True, both_directions=False,
     }
 
     ae_entry = AE_REGISTRY[ae_name]
-    if ae_entry['gspace'] is not None:
-        network_parameters['gspace'] = ae_entry['gspace']()
 
     payload = {'p_red': p_red, 'network_parameters': network_parameters}
     with (network_parameters_dir / f"{stem}.pkl").open("wb") as f:
         pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    if ae_entry['gspace'] is not None: 
+        network_parameters['gspace'] = ae_entry['gspace']()
 
     parameters_es_scheduler = {
         'checkpoint_filepath': checkpoints_file,
@@ -198,7 +199,6 @@ def train_wave_2D(ae_name, p_red=12, x_flow=True, both_directions=False,
         'validation_data': validation_data,
         'number_of_epochs': number_of_epochs,
         'batch_size': batch_size,
-        'log_filename': log_file,
         'nn_save_filepath': checkpoints_file,
     })
 
