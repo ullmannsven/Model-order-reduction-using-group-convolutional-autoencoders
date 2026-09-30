@@ -1659,8 +1659,7 @@ class InvariantPoseGCNNAutoencoder2D(nn.Module):
                 super(InvariantEncoder, self).__init__()
                 self.fc_layers = nn.ModuleList()
  
-                self.H, self.W = build_equivariant_trunk(self, outer.encoder_channels, outer.encoder_kernel_sizes,
-                                                         outer.encoder_paddings, outer.encoder_strides)
+                self.H, self.W = build_equivariant_trunk(self, outer.encoder_channels, outer.encoder_kernel_sizes, outer.encoder_paddings, outer.encoder_strides)
                 outer._enc_feat_shape = (outer.encoder_channels[-1], self.H, self.W)
                 outer._enc_spatial_sizes = list(self.spatial_sizes)
  

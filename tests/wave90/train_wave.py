@@ -167,7 +167,10 @@ def train_wave_2D(ae_name, p_red=12, x_flow=True, both_directions=False,
         'decoder_paddings': 1,
         'decoder_strides': 2,
         'decoder_kernel_sizes': 3,
-    }
+    } 
+
+    if "InvariantPoseGCNN" in ae_name: 
+        network_parameters['pose_encoder_channels'] = [2, 4, 8, 16, 32]
 
     ae_entry = AE_REGISTRY[ae_name]
 
