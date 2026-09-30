@@ -426,7 +426,9 @@ class Trainer:
                             # additional loss terms computed inside the network's forward pass (e.g. pose loss)
                             auxiliary_loss = getattr(self.model.network, "auxiliary_loss", None)
                             if callable(auxiliary_loss):
-                                loss = loss + auxiliary_loss()
+                                aux_loss = auxiliary_loss()
+                                print(aux_loss.item())
+                                loss = loss + aux_loss
 
                             if not torch.isfinite(loss):
                                 self.diagnose_nonfinite_loss(inputs, targets, phase, epoch)
