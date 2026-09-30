@@ -13,6 +13,11 @@ Arguments:
                         RotationUpsamplingGCNN_C8   -> RotationUpsamplingGCNNAutoencoder2D (N=8)
                         UpsamplingCNN               -> UpsamplingCNNAutoencoder2D
                         TrivialUpsamplingGCNN       -> TrivialUpsamplingGCNNAutoencoder2D
+                        InvariantPoseGCNN_C4        -> InvariantPoseGCNNAutoencoder2D (N=4)
+                        InvariantPoseGCNN_C8        -> InvariantPoseGCNNAutoencoder2D (N=8)
+                    For the invariant/pose autoencoders the decoder uses the known pose of the test
+                    data (identity for x-flow, rotation by -90 degrees for y-flow); the pose estimated
+                    by the network is only reported as a diagnostic.
     --xflow         Enable xflow (default: True).
     --p_red         One or more reduced dimensions to evaluate (default: 4 8 12 16)
     --timestamp     Optional saved-run timestamp; appends _t_TIMESTAMP to both input filenames.
@@ -34,6 +39,9 @@ Examples:
 
     # yflow 
     python proj_error_AE.py --ae_name RotationUpsamplingGCNN_C4 --no-xflow --p_red 4
+
+    # invariant/pose autoencoder on the rotated (y-flow) problem
+    python proj_error_AE.py --ae_name InvariantPoseGCNN_C4 --no-xflow --p_red 12
 """
 
 import argparse
@@ -48,7 +56,7 @@ from pymor.basic import *
 import torch
 from escnn import gspaces
 
-from equiv_networks.autoencoders import RotationUpsamplingGCNNAutoencoder2D, UpsamplingCNNAutoencoder2D
+from equiv_networks.autoencoders import RotationUpsamplingGCNNAutoencoder2D, UpsamplingCNNAutoencoder2D, InvariantPoseGCNNAutoencoder2D
 from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
 from scaling.scale import Scaler
 from experiment_setup import WaveExperimentConfig, WaveExperiment
@@ -77,8 +85,28 @@ AE_REGISTRY = {
     'UpsamplingCNN_bothdir': {
         'class': UpsamplingCNNAutoencoder2D,
         'gspace': None,
-    }
+    },
+    'InvariantPoseGCNN_C4': {
+        'class': InvariantPoseGCNNAutoencoder2D,
+        'gspace': lambda: gspaces.rot2dOnR2(N=4),
+    },
+    'InvariantPoseGCNN_C8': {
+        'class': InvariantPoseGCNNAutoencoder2D,
+        'gspace': lambda: gspaces.rot2dOnR2(N=8),
+    },
 }
+
+
+def known_pose(group_order, x_flow):
+    """Pose index k (element g_k of C_N) of the test data relative to the training orientation (x-flow).
+
+    The y-flow test snapshots are generated as np.rot90(u, k=-1, axes=(1, 2)), i.e. torch.rot90(x, -1) on the
+    (row, column) axes. In escnn's convention the generator of C4 acts as torch.rot90(x, 1), so this is the
+    element g_{3N/4}: pose 3 for C4 and pose 6 for C8.
+    """
+    if x_flow:
+        return 0
+    return (3 * group_order // 4) % group_order
 
 
 def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True, visualize=False, write_csv = False, timestamp=None):
@@ -130,6 +158,16 @@ def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True,
         model.network.eval()
         device = next(model.network.parameters()).device
 
+        # Invariant/pose autoencoders do not store the orientation in the latent code: the decoder is told the
+        # (known) rotation of the test problem once. This must happen before compute_reference_offset, since
+        # u_ref = u_0 - decode(encode(0)) uses the same decoder.
+        uses_pose = hasattr(model.network, "set_pose")
+        pose_agreement = []
+        if uses_pose:
+            pose = known_pose(model.network.group_order, config.x_flow)
+            model.network.set_pose(pose)
+            print(f"Decoding with known pose {pose} of C{model.network.group_order}")
+
         #mu_tag = f"{mu_val:.2f}".replace('.', '')
         filename = filepaths['snapshots'] / f"snapshots_{grid}_{mu_val}_nt_{config.nt}"
         with open(filename, 'rb') as f:
@@ -157,13 +195,25 @@ def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True,
             sol_rot = u_test[:, i]
 
             if scaled_data:
-                sol_rot_scaled = torch.as_tensor(scaler.scale(scaler.restrict(sol_rot)), dtype=torch.float32, device=device).unsqueeze(0)
-                sol_rot_enc = model.network.encode(sol_rot_scaled).detach().cpu().numpy()
-                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.float32, device=device))[0].detach().cpu().numpy()
+                net_input = torch.as_tensor(scaler.scale(scaler.restrict(sol_rot)), dtype=torch.float32, device=device).unsqueeze(0)
+            else:
+                net_input = torch.as_tensor(scaler.restrict(sol_rot), dtype=torch.float32, device=device).unsqueeze(0)
+
+            with torch.no_grad():
+                if uses_pose:
+                    # invariant code; the estimated pose is only compared against the known pose
+                    sol_rot_enc, estimated_pose = model.network.encode_with_pose(net_input)
+                    # the first snapshot is the zero state (constant field after scaling): its pose is undefined
+                    if i > 0:
+                        pose_agreement.append(int(estimated_pose[0]) == pose)
+                else:
+                    sol_rot_enc = model.network.encode(net_input)
+                # for invariant/pose autoencoders, decode() applies the known pose set above
+                sol_rot_dec = model.network.decode(sol_rot_enc)[0].cpu().numpy()
+
+            if scaled_data:
                 sol_rot_dec = scaler.prolongate(scaler.unscale(sol_rot_dec))
             else:
-                sol_rot_enc = model.network.encode(torch.as_tensor(scaler.restrict(sol_rot), dtype=torch.float32, device=device).unsqueeze(0)).detach().cpu().numpy()
-                sol_rot_dec = model.network.decode(torch.as_tensor(sol_rot_enc, dtype=torch.float32, device=device))[0].detach().cpu().numpy()
                 sol_rot_dec = scaler.prolongate(sol_rot_dec)
 
             if visualize and i == 100:
@@ -186,6 +236,9 @@ def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True,
         err_p = np.sqrt(np.sum(errors_p, axis=0) / np.sum(errors_p_den, axis=0))[0]
 
         proj_errors.append((p_red, err))
+
+        if uses_pose:
+            print(f"Estimated pose equals known pose for {100 * np.mean(pose_agreement):.1f}% of the snapshots")
 
     print("\nProjection errors:", proj_errors)
 
