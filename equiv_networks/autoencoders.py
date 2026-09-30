@@ -1681,25 +1681,11 @@ class InvariantPoseGCNNAutoencoder2D(nn.Module):
                 return trunk_forward(self, x)
  
             def head(self, h):
-                dtype = next(self.pose_layer.parameters()).dtype
-                B = h.tensor.shape[0]
-                with torch.autocast(device_type=h.tensor.device.type, enabled=False):
-                    x = GeometricTensor(h.tensor.view(B, -1).to(dtype), self.in_type0)
-                    x = self.pose_layer(x).tensor
-                    # Normalize the scores with invariant statistics, which keeps chi = argmax equivariant and bounds
-                    # the logits: otherwise the pose loss and the soft relaxation push them apart without limit (Adam
-                    # keeps making steps of size ~lr even when the cross-entropy is already ~0).
-                    # rsqrt(. + eps) keeps the gradient finite for inputs with tied scores (e.g. constant fields).
-                    if self.pose_representation == 'irrep':
-                        # unit vector on S^1, the homogeneous space of Winter et al.'s SO(2) construction
-                        x = x * torch.rsqrt(x.pow(2).sum(dim=1, keepdim=True) + self.eps)
-                        x = x @ self.directions.t()
-                    else:
-                        # zero mean and unit standard deviation over the N group channels (both invariant under C_N)
-                        x = x - x.mean(dim=1, keepdim=True)
-                        x = x * torch.rsqrt(x.pow(2).mean(dim=1, keepdim=True) + self.eps)
+                # regular fields are stored field-major: (B, fields * N, 1, 1) -> (B, fields, N) -> max over N
+                x = h.tensor.view(h.tensor.shape[0], self.number_of_fields, self.group_order).amax(dim=2)
+                for layer in self.fc_layers:
+                    x = layer(x)
                 return x
-
  
             def forward(self, x):
                 return self.head(self.trunk(x))
@@ -1736,11 +1722,24 @@ class InvariantPoseGCNNAutoencoder2D(nn.Module):
  
             def head(self, h):
                 B = h.tensor.shape[0]
-                x = GeometricTensor(h.tensor.view(B, -1), self.in_type0)
-                x = self.pose_layer(x).tensor
-                if self.pose_representation == 'irrep':
-                    x = x @ self.directions.t()
+                dtype = next(self.pose_layer.parameters()).dtype
+                with torch.autocast(device_type=h.tensor.device.type, enabled=False):
+                    x = GeometricTensor(h.tensor.view(B, -1).to(dtype), self.in_type0)
+                    x = self.pose_layer(x).tensor
+                    # Normalize the scores with invariant statistics, which keeps chi = argmax equivariant and bounds
+                    # the logits: otherwise the pose loss and the soft relaxation push them apart without limit (Adam
+                    # keeps making steps of size ~lr even when the cross-entropy is already ~0).
+                    # rsqrt(. + eps) keeps the gradient finite for inputs with tied scores (e.g. constant fields).
+                    if self.pose_representation == 'irrep':
+                        # unit vector on S^1, the homogeneous space of Winter et al.'s SO(2) construction
+                        x = x * torch.rsqrt(x.pow(2).sum(dim=1, keepdim=True) + self.eps)
+                        x = x @ self.directions.t()
+                    else:
+                        # zero mean and unit standard deviation over the N group channels (both invariant under C_N)
+                        x = x - x.mean(dim=1, keepdim=True)
+                        x = x * torch.rsqrt(x.pow(2).mean(dim=1, keepdim=True) + self.eps)
                 return x
+
  
         # ===================== DECODER (delta) ===================== #
         class CanonicalDecoder(nn.Module):
