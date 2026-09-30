@@ -1565,7 +1565,7 @@ class InvariantPoseGCNNAutoencoder2D(nn.Module):
                  pose_kernel_sizes=3,
                  pose_paddings=1,
                  pose_strides=2,
-                 pose_relaxation='hard',
+                 pose_relaxation='soft',
                  pose_temperature=1.0,
                  pose_loss_weight=1e-3):
  
