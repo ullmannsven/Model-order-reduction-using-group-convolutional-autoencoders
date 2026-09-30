@@ -26,8 +26,8 @@ from pymor.parameters.functionals import ExpressionParameterFunctional
 class WaveExperimentConfig:
     """Configuration for wave equation experiments."""
     # Grid parameters
-    Nx: int = 256
-    Ny: int = 256
+    Nx: int = 257 #2^N + 1 is a good number to not break equivariance with the way we choose stride etc
+    Ny: int = 257
     Lx: float = 1.0
     Ly: float = 1.0
     
