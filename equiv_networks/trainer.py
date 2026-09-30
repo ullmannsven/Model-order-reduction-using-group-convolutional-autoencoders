@@ -68,7 +68,7 @@ class Trainer:
     def __init__(self, model, optimizer=None, parameters_optimizer={}, learning_rate=None,
                  lr_scheduler=None, parameters_lr_scheduler=None, use_validation=True,
                  es_scheduler=None, parameters_es_scheduler={}, device=None, 
-                 loss_mode=None, targets_are_normalized=True, loss_symplectic_fraction=None):
+                 loss_mode=None, targets_are_normalized=True, mixed_precision="float16", loss_symplectic_fraction=None):
         
         if learning_rate:
             self.learning_rate = learning_rate
@@ -86,6 +86,12 @@ class Trainer:
         self.model.network.to(self.device)
         self.gradscaler = GradScaler() if self.device.type == "cuda" else None
         self.global_step = 0
+
+        assert mixed_precision in ("float16", "bfloat16", None), f"Unknown mixed_precision '{mixed_precision}'"
+        amp_dtypes = {"float16": torch.float16, "bfloat16": torch.bfloat16, None: None}
+        self.amp_dtype = amp_dtypes[mixed_precision] if self.device.type == "cuda" else None
+        self.gradscaler = GradScaler() if self.amp_dtype == torch.float16 else None
+
 
         if optimizer:
             self.optimizer = optimizer(self.model.network.parameters(), lr=learning_rate, **parameters_optimizer)
@@ -290,6 +296,54 @@ class Trainer:
         w = torch.as_tensor(w, device=pred_phys.device, dtype=pred_phys.dtype)
         w = w.view(1, -1, 1, 1)
         return ((pred_phys - target_phys).pow(2) * w).mean()
+
+    def diagnose_nonfinite_loss(self, inputs, targets, phase, epoch):
+        """Report the source of a non-finite loss (data, parameters, precision, first layer) and stop training.
+
+        The batch is re-evaluated twice without gradients, once with the training precision and once in plain
+        float32, while forward hooks record for every module whether its output is finite and its largest entry.
+        If the float32 pass is finite, the NaN is caused by the reduced precision (overflow of the largest entry).
+        """
+        network = self.model.network
+        print()
+        print(f"Non-finite loss in epoch {epoch} ({phase} phase).")
+        print(f"  inputs finite: {bool(torch.isfinite(inputs).all())}, targets finite: {bool(torch.isfinite(targets).all())}")
+        print(f"  all parameters finite: {all(bool(torch.isfinite(p).all()) for p in network.parameters())}")
+        if self.gradscaler is not None:
+            print(f"  gradient scale: {self.gradscaler.get_scale()}")
+
+        records = []
+        def hook(name):
+            def record(module, module_input, module_output):
+                t = getattr(module_output, "tensor", module_output)  # escnn GeometricTensor or torch.Tensor
+                if isinstance(t, torch.Tensor) and t.is_floating_point():
+                    t = t.detach()
+                    records.append((name, bool(torch.isfinite(t).all()), t.abs().nan_to_num(posinf=float("inf")).max().item(), str(t.dtype)))
+            return record
+        handles = [module.register_forward_hook(hook(name)) for name, module in network.named_modules() if name]
+
+        try:
+            passes = [("training precision", self.amp_dtype), ("float32", None)] if self.amp_dtype is not None else [("float32", None)]
+            for label, dtype in passes:
+                records.clear()
+                with torch.no_grad(), autocast(self.device.type, dtype=dtype or torch.float16, enabled=dtype is not None):
+                    outputs = network(inputs)
+                    data_loss = self.model.loss_function(outputs.float(), targets.float())
+                    auxiliary_loss = getattr(network, "auxiliary_loss", None)
+                    auxiliary = auxiliary_loss().item() if callable(auxiliary_loss) else None
+                first_bad = next((r for r in records if not r[1]), None)
+                largest = max(records, key=lambda r: r[2]) if records else None
+                print(f"  [{label}] data loss {data_loss.item():.3e}, auxiliary loss {auxiliary}")
+                print(f"  [{label}] first module with non-finite output: {first_bad[0] + ' (' + first_bad[3] + ')' if first_bad else None}")
+                if largest is not None:
+                    print(f"  [{label}] largest output entry: {largest[2]:.3e} in {largest[0]} ({largest[3]})")
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        raise FloatingPointError("Non-finite loss during training, see the diagnosis above. "
+                                 "The best model so far is kept in the early stopping checkpoint.")
+
     
 
     def train_network(self, training_loader, number_of_epochs=1000,
@@ -373,6 +427,9 @@ class Trainer:
                             auxiliary_loss = getattr(self.model.network, "auxiliary_loss", None)
                             if callable(auxiliary_loss):
                                 loss = loss + auxiliary_loss()
+
+                            if not torch.isfinite(loss):
+                                self.diagnose_nonfinite_loss(inputs, targets, phase, epoch)
 
                             # perform step of optimizer if in training phase
                             if phase == 'train':
