@@ -48,7 +48,8 @@ from escnn import gspaces
 
 from equiv_networks.autoencoders import (
     RotationUpsamplingGCNNAutoencoder2D,
-    UpsamplingCNNAutoencoder2D
+    UpsamplingCNNAutoencoder2D, 
+    InvariantPoseGCNNAutoencoder2D
 )
 from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
 from equiv_networks.early_stopping import SimpleEarlyStoppingScheduler
@@ -67,6 +68,14 @@ AE_REGISTRY = {
     'UpsamplingCNN': {
         'class': UpsamplingCNNAutoencoder2D,
         'gspace': None,
+    },
+    'InvariantPoseGCNN_C4': {
+        'class': InvariantPoseGCNNAutoencoder2D,
+        'gspace': lambda: gspaces.rot2dOnR2(N=4),
+    },
+    'InvariantPoseGCNN_C8': {
+        'class': InvariantPoseGCNNAutoencoder2D,
+        'gspace': lambda: gspaces.rot2dOnR2(N=8),
     },
 }
 

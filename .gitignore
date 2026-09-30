@@ -31,7 +31,7 @@ wandb/
 mlruns/
 
 # Data / models (adjust as needed)
-
+checkpoints/
 snapshots_grid/
 GCNN_tests/
 new_wave/
@@ -53,5 +53,6 @@ test_wave_pod_lspg.py
 # PyTest / coverage
 .pytest_cache/
 .coverage
-htmlcov/. \ t e s t s \ w a v e \ m o r _ r e s u l t s \  
+htmlcov/. \ t e s t s \ w a v e \ m o r _ r e s u l t s \ 
+ 
  

@@ -369,6 +369,11 @@ class Trainer:
 
                             loss = self._compute_loss(outputs, targets, inputs, encoded_inputs=encoded_inputs)
 
+                            # additional loss terms computed inside the network's forward pass (e.g. pose loss)
+                            auxiliary_loss = getattr(self.model.network, "auxiliary_loss", None)
+                            if callable(auxiliary_loss):
+                                loss = loss + auxiliary_loss()
+
                             # perform step of optimizer if in training phase
                             if phase == 'train':
                                 self.optimizer.zero_grad()
