@@ -1622,8 +1622,6 @@ class InvariantPoseGCNNAutoencoder2D(nn.Module):
         self.pose_loss_weight = float(pose_loss_weight)
         self._auxiliary_loss = None
 
-        self.eps = 1e-6
- 
         def conv_out(n, kernel_size=5, padding=2, stride=2, dilation=1):
             return ((n + 2*padding - dilation*(kernel_size-1) - 1)//stride) + 1
  
@@ -1716,6 +1714,7 @@ class InvariantPoseGCNNAutoencoder2D(nn.Module):
                     self.register_buffer("directions", torch.tensor(directions))
                 self.pose_layer = Linear(self.in_type0, out_type0, bias=True)
                 self.pose_representation = outer.pose_representation
+                self.eps = 1e-6
  
             def trunk(self, x):
                 return trunk_forward(self, x)
