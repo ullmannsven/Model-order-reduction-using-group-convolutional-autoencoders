@@ -209,6 +209,7 @@ def proj_error_AE(ae_name, xflow, p_red_values, mu_val= 0.8, scaled_data = True,
                 else:
                     sol_rot_enc = model.network.encode(net_input)
                 # for invariant/pose autoencoders, decode() applies the known pose set above
+                print(sol_rot_enc.shape)
                 sol_rot_dec = model.network.decode(sol_rot_enc)[0].cpu().numpy()
 
             if scaled_data:
