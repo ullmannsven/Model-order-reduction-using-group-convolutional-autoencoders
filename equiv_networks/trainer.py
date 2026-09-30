@@ -427,7 +427,6 @@ class Trainer:
                             auxiliary_loss = getattr(self.model.network, "auxiliary_loss", None)
                             if callable(auxiliary_loss):
                                 aux_loss = auxiliary_loss()
-                                print(aux_loss.item())
                                 loss = loss + aux_loss
 
                             if not torch.isfinite(loss):
