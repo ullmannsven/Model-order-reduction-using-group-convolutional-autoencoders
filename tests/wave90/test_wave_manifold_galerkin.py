@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """
-Test 2D wave equation with manifold-LSPG method.
+Test 2D wave equation with manifold-Galerkin method.
 
 Usage:
-    python test_wave_manifold_lspg.py --ae_name AE_NAME [--mu_val MU]
-                                  [--p_red N] [--scaled_data] [--no_scaled_data]
-                                  [--visualize] [--save_data]
+    python test_wave_manifold_galerkin.py --ae_name AE_NAME [--xflow] [--mu_val MU]
+                                      [--p_red N] [--scaled_data]
+                                      [--symplectic] [--visualize]
 
 Arguments:
     --ae_name       Name of the autoencoder architecture.
@@ -15,25 +15,27 @@ Arguments:
                         UpsamplingCNN               -> UpsamplingCNNAutoencoder2D
                         TrivialUpsamplingGCNN       -> TrivialUpsamplingGCNNAutoencoder2D
 
-    --mu_val        Test parameter value (default: 1.5)
-    --p_red         Reduced dimension (default: 12)
-    --scaled_data   Use scaled data (default: True). Use --no_scaled_data to disable.
+    --xflow         Use x-flow formulation (default: True).
+    --mu_val        Test parameter value (default: 0.8)
+    --p_red         Reduced dimension (default: 8)
+    --scaled_data   Use scaled data (default: True). 
+    --symplectic    Enable symplectic integration (default: False)
     --visualize     Enable visualization during timestepping.
-    --save_data     Save ROM solution and error metrics to file.
+    --save_data     Save reduction errors to a CSV file (default: False)
 
 Checkpoint naming convention:
     wave_2D_{ae_name}_p_{p_red}_{Nx}x{Ny}.pt
     wave_2D_{ae_name}_p_{p_red}_{Nx}x{Ny}.pkl
 
 Examples:
-    # CNN baseline, default settings
-    python test_wave_manifold_lspg.py --ae_name UpsamplingCNN
+    # C4 network, default settings
+    python test_wave_manifold_galerkin.py --ae_name RotationUpsamplingGCNN_C4
 
-    # C8 network, different mu, save results
-    python test_wave_manifold_lspg.py --ae_name RotationUpsamplingGCNN_C8 --mu_val 0.8 --p_red 8 --save_data
+    # CNN baseline, different mu
+    python test_wave_manifold_galerkin.py --ae_name UpsamplingCNN --mu_val 0.6 --p_red 12
 
-    # With visualization
-    python test_wave_manifold_lspg.py --ae_name UpsamplingCNN --visualize
+    # With symplectic integration and visualization
+    python test_wave_manifold_galerkin.py --ae_name RotationUpsamplingGCNN_C4 --symplectic --visualize
 """
 
 import argparse
@@ -42,7 +44,7 @@ import numpy as np
 import pickle
 import os
 from pathlib import Path
-
+import csv
 from pymor.basic import *
 
 import torch
@@ -50,7 +52,7 @@ from escnn import gspaces
 
 from equiv_networks.autoencoders import RotationUpsamplingGCNNAutoencoder2D, UpsamplingCNNAutoencoder2D
 from equiv_networks.models.nonlinear_manifolds import NonlinearManifoldsMOR2D
-from equiv_networks.models.manifold_lspg_utilities_IMR import LSPG_quasi_newton
+from equiv_networks.models.manifold_galerkin_utilities_IMR import Galerkin_quasi_newton
 from scaling.scale import Scaler
 from experiment_setup import WaveExperiment, WaveExperimentConfig
 
@@ -83,14 +85,14 @@ AE_REGISTRY = {
 }
 
 
-def test_wave_manifold_lspg(ae_name, mu_val=1.5, p_red=12, scaled_data=True, visualize=False, save_data=False):
-    """Test 2D wave equation with manifold-LSPG method."""
+def test_wave_manifold_galerkin(ae_name, mu_val=0.8, xflow=True, p_red=8, scaled_data=True, symplectic=False, visualize=False, save_data=False):
+    """Test 2D wave equation with manifold-Galerkin method."""
 
     if ae_name not in AE_REGISTRY:
         raise ValueError(f"Unknown ae_name '{ae_name}'. Choose from: {list(AE_REGISTRY.keys())}")
     ae_entry = AE_REGISTRY[ae_name]
 
-    config = WaveExperimentConfig(x_flow=True, visualize_q=visualize)
+    config = WaveExperimentConfig(x_flow=xflow, nt=500, timestep_factor=1, visualize_q=visualize)
     experiment = WaveExperiment(config)
 
     Nx = config.Nx
@@ -99,6 +101,9 @@ def test_wave_manifold_lspg(ae_name, mu_val=1.5, p_red=12, scaled_data=True, vis
 
     script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
     filepaths = experiment.get_filepath_patterns(script_dir)
+
+    if "Symplectic" in ae_name:
+        assert symplectic == True, "Symplectic integration must be enabled for Symplectic autoencoder variants."
 
     stem = f"wave_2D_{ae_name}_p_{p_red}_{grid}"
     nn_save_filepath = filepaths['checkpoints'] / f"{stem}.pt"
@@ -120,9 +125,6 @@ def test_wave_manifold_lspg(ae_name, mu_val=1.5, p_red=12, scaled_data=True, vis
     model.load_neural_network(path=nn_save_filepath)
     model.network.eval()
 
-    trainable = sum(p.numel() for p in model.network.parameters() if p.requires_grad)
-    print(f"Network has {trainable} trainable parameters")
-
     mu_tag = f"{mu_val:.2f}".replace('.', '')
     mu_test = experiment.fom.parameters.parse({'mu': mu_val})
     filename = filepaths['snapshots'] / f"snapshots_{grid}_{mu_tag}_nt_{config.nt}"
@@ -142,56 +144,66 @@ def test_wave_manifold_lspg(ae_name, mu_val=1.5, p_red=12, scaled_data=True, vis
     u_approx_full = [initial_state]
     u_test = u_test + initial_state
 
-    print("Starting timestepping for ROM ...")
+    print("Starting timestepping for ROM...")
     for i in range(config.n_timesteps):
         tic = time.time()
         t = (i + 1) * config.dt
         print(f'Time: {t:.3f}')
 
         u_n1 = u_approx[-1]
-        u_new = LSPG_quasi_newton(model, u_n1, mu_test, config.dt, experiment.fom, u_ref, scaled_data, tol=1e-8)
+        u_new = Galerkin_quasi_newton(model, u_n1, mu_test, config.dt, experiment.fom, u_ref, scaled_data, symplectic=symplectic, tol=1e-8)
         u_approx.append(u_new)
 
-        decode_u_new = model.network.decode(torch.as_tensor(u_new, dtype=torch.double, device="cpu"))[0].detach().cpu().numpy()
+        decode_u_new = model.network.decode(torch.as_tensor(u_new, dtype=torch.float32, device="cpu"))[0].detach().cpu().numpy()
         if scaled_data:
             decode_u_new = scaler.prolongate(scaler.unscale(decode_u_new))
         else:
             decode_u_new = scaler.prolongate(decode_u_new)
 
-        if visualize and i in (0, 50, 100):
-            space = NumpyVectorSpace(model.dims[0] * model.dims[1] * model.dims[2])
-            experiment.fom.visualize(space.make_array(u_ref + decode_u_new))
-            experiment.fom.visualize(space.make_array(u_test[:, i]))
+        u_approx_full.append(u_ref + decode_u_new)
 
-        u_approx_full.append((u_ref + decode_u_new).reshape(-1, 1))
+        if visualize and i in (0, 50, 100):
+            space2 = NumpyVectorSpace(Nx * Ny * 2)
+            experiment.fom.visualize(space2.make_array(u_approx_full[i]))
+
         print(f"Step took {time.time() - tic:.2f}s")
 
     print("\n" + "=" * 60)
     print("Error Metrics:")
     print("=" * 60)
 
-    metrics = experiment.compute_error_metrics(u_approx_full, u_test, u_approx_latent=u_approx, model=model)
+    metrics = experiment.compute_error_metrics(u_approx_full, u_test)
 
     print(f"Relative error (total):  {metrics['relative_error_total']:.6e}")
     print(f"Relative error (q):      {metrics['relative_error_q']:.6e}")
     print(f"Relative error (p):      {metrics['relative_error_p']:.6e}")
-    print(f"Relative error (latent): {metrics['relative_error_latent']:.6e}")
 
+    
     if save_data:
-        pass
+        out_file = filepaths['results'] / f"reduction_error_{ae_name}_mu{mu_val}.csv"
+        file_exists = out_file.exists()
+        with open(out_file, "a", newline="") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(["x", "y"])
+            writer.writerow([p_red, metrics['relative_error_total']])
+        print(f"Saved CSV to: {out_file}")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Test 2D wave equation with manifold-LSPG method.',
+        description='Test 2D wave equation with manifold-Galerkin method.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     parser.add_argument('--ae_name', type=str, required=True, choices=list(AE_REGISTRY.keys()), help='Autoencoder architecture name')
-    parser.add_argument('--mu_val', type=float, default=1.5, help='Test parameter value mu (default: 1.5)')
-    parser.add_argument('--p_red', type=int, default=12, help='Reduced dimension (default: 12)')
+    parser.add_argument('--xflow', action='store_true', default=True, help='Use x-flow formulation (default: True)')
+    parser.add_argument('--mu_val', type=float, default=0.8, help='Test parameter value mu (default: 0.8)')
+    parser.add_argument('--p_red', type=int, default=8, help='Reduced dimension (default: 8)')
     parser.add_argument('--scaled_data', action=argparse.BooleanOptionalAction, default=True, help='Use scaled data (default: True)')
+    parser.add_argument('--symplectic', action='store_true', default=False, help='Enable symplectic integration')
     parser.add_argument('--visualize', action='store_true', default=False, help='Enable visualization during timestepping')
-    parser.add_argument('--save_data', action='store_true', default=False, help='Save ROM solution and error metrics to file')
+    parser.add_argument('--save_data', action='store_true', default=False, help='Save data to CSV file')
 
     args = parser.parse_args()
-    test_wave_manifold_lspg(ae_name=args.ae_name, mu_val=args.mu_val, p_red=args.p_red, scaled_data=args.scaled_data, visualize=args.visualize, save_data=args.save_data)
+    test_wave_manifold_galerkin(ae_name=args.ae_name, xflow=args.xflow, mu_val=args.mu_val, p_red=args.p_red, scaled_data=args.scaled_data, symplectic=args.symplectic, visualize=args.visualize, save_data=args.save_data)

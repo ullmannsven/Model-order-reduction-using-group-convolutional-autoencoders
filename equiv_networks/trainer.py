@@ -3,6 +3,7 @@
 import torch
 import torch.utils as utils
 import torch.nn as nn
+from torch.amp import autocast, GradScaler 
 
 class ProgressTraining:
 
@@ -67,7 +68,7 @@ class Trainer:
     def __init__(self, model, optimizer=None, parameters_optimizer={}, learning_rate=None,
                  lr_scheduler=None, parameters_lr_scheduler=None, use_validation=True,
                  es_scheduler=None, parameters_es_scheduler={}, device=None, 
-                 loss_mode=None, targets_are_normalized=True, loss_symplectic_fraction=None):
+                 loss_mode=None, targets_are_normalized=True, mixed_precision="float16", loss_symplectic_fraction=None):
         
         if learning_rate:
             self.learning_rate = learning_rate
@@ -83,6 +84,14 @@ class Trainer:
         
         self.model = model
         self.model.network.to(self.device)
+        self.gradscaler = GradScaler() if self.device.type == "cuda" else None
+        self.global_step = 0
+
+        assert mixed_precision in ("float16", "bfloat16", None), f"Unknown mixed_precision '{mixed_precision}'"
+        amp_dtypes = {"float16": torch.float16, "bfloat16": torch.bfloat16, None: None}
+        self.amp_dtype = amp_dtypes[mixed_precision] if self.device.type == "cuda" else None
+        self.gradscaler = GradScaler() if self.amp_dtype == torch.float16 else None
+
 
         if optimizer:
             self.optimizer = optimizer(self.model.network.parameters(), lr=learning_rate, **parameters_optimizer)
@@ -162,7 +171,8 @@ class Trainer:
         print('Training of neural network:')
         print('===========================')
         print()
-
+        
+        print("which device", self.device) 
         if self.device.type == "cuda":
             workers = 8
         else: 
@@ -286,6 +296,54 @@ class Trainer:
         w = torch.as_tensor(w, device=pred_phys.device, dtype=pred_phys.dtype)
         w = w.view(1, -1, 1, 1)
         return ((pred_phys - target_phys).pow(2) * w).mean()
+
+    def diagnose_nonfinite_loss(self, inputs, targets, phase, epoch):
+        """Report the source of a non-finite loss (data, parameters, precision, first layer) and stop training.
+
+        The batch is re-evaluated twice without gradients, once with the training precision and once in plain
+        float32, while forward hooks record for every module whether its output is finite and its largest entry.
+        If the float32 pass is finite, the NaN is caused by the reduced precision (overflow of the largest entry).
+        """
+        network = self.model.network
+        print()
+        print(f"Non-finite loss in epoch {epoch} ({phase} phase).")
+        print(f"  inputs finite: {bool(torch.isfinite(inputs).all())}, targets finite: {bool(torch.isfinite(targets).all())}")
+        print(f"  all parameters finite: {all(bool(torch.isfinite(p).all()) for p in network.parameters())}")
+        if self.gradscaler is not None:
+            print(f"  gradient scale: {self.gradscaler.get_scale()}")
+
+        records = []
+        def hook(name):
+            def record(module, module_input, module_output):
+                t = getattr(module_output, "tensor", module_output)  # escnn GeometricTensor or torch.Tensor
+                if isinstance(t, torch.Tensor) and t.is_floating_point():
+                    t = t.detach()
+                    records.append((name, bool(torch.isfinite(t).all()), t.abs().nan_to_num(posinf=float("inf")).max().item(), str(t.dtype)))
+            return record
+        handles = [module.register_forward_hook(hook(name)) for name, module in network.named_modules() if name]
+
+        try:
+            passes = [("training precision", self.amp_dtype), ("float32", None)] if self.amp_dtype is not None else [("float32", None)]
+            for label, dtype in passes:
+                records.clear()
+                with torch.no_grad(), autocast(self.device.type, dtype=dtype or torch.float16, enabled=dtype is not None):
+                    outputs = network(inputs)
+                    data_loss = self.model.loss_function(outputs.float(), targets.float())
+                    auxiliary_loss = getattr(network, "auxiliary_loss", None)
+                    auxiliary = auxiliary_loss().item() if callable(auxiliary_loss) else None
+                first_bad = next((r for r in records if not r[1]), None)
+                largest = max(records, key=lambda r: r[2]) if records else None
+                print(f"  [{label}] data loss {data_loss.item():.3e}, auxiliary loss {auxiliary}")
+                print(f"  [{label}] first module with non-finite output: {first_bad[0] + ' (' + first_bad[3] + ')' if first_bad else None}")
+                if largest is not None:
+                    print(f"  [{label}] largest output entry: {largest[2]:.3e} in {largest[0]} ({largest[3]})")
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        raise FloatingPointError("Non-finite loss during training, see the diagnosis above. "
+                                 "The best model so far is kept in the early stopping checkpoint.")
+
     
 
     def train_network(self, training_loader, number_of_epochs=1000,
@@ -338,6 +396,7 @@ class Trainer:
 
         # perform actual training iteration
         for epoch in range(number_of_epochs):
+            print("HALLO welche epoch", epoch, self.device) 
             losses = {}
             for phase in phases: # eiter 'train' or 'val'
                 # set state of network according to current phase (training or validation)
@@ -351,39 +410,41 @@ class Trainer:
                 # iterate over all batches in the respective phase
                 for batch in dataloaders[phase]:
                     
-                    inputs  = torch.stack(batch['inputs']).to(self.device, non_blocking=(self.device.type=="cuda"))
-                    targets = torch.stack(batch['targets']).to(self.device, non_blocking=(self.device.type=="cuda"))        
+                    inputs  = batch['inputs'].to(self.device, non_blocking=(self.device.type=="cuda"))
+                    targets = batch['targets'].to(self.device, non_blocking=(self.device.type=="cuda"))        
 
                     with torch.set_grad_enabled(phase == 'train'):
-                        
-                        # define closure
-                        def closure():
-                            if torch.is_grad_enabled():
-                                self.optimizer.zero_grad()
-                            
+                        with autocast("cuda", enabled=(self.device.type == "cuda")):
                             outputs = self.model.network(inputs)
+                            # compute loss
                             encoded_inputs = None
                             if self.loss_mode == "symplectic":
-                                with torch.no_grad():
-                                    encoded_inputs = self.model.network.encode(inputs)
-                            
+                                encoded_inputs = self.model.network.encoder(inputs)
+
                             loss = self._compute_loss(outputs, targets, inputs, encoded_inputs=encoded_inputs)
 
-                            # back propagate loss if necessary
-                            if loss.requires_grad:
-                                loss.backward()
-                            
-                            return loss
+                            # additional loss terms computed inside the network's forward pass (e.g. pose loss)
+                            auxiliary_loss = getattr(self.model.network, "auxiliary_loss", None)
+                            if callable(auxiliary_loss):
+                                loss = loss + auxiliary_loss()
 
-                        # perform step of optimizer if in training phase
-                        if phase == 'train':
-                            self.optimizer.step(closure)
+                            if not torch.isfinite(loss):
+                                self.diagnose_nonfinite_loss(inputs, targets, phase, epoch)
 
-                        # perform step of learning rate scheduler if necessary
-                        if self.lr_scheduler and phase == 'train':
-                            self.lr_scheduler.step()
+                            # perform step of optimizer if in training phase
+                            if phase == 'train':
+                                self.optimizer.zero_grad()
 
-                        loss = closure()
+                                if self.gradscaler is not None:
+                                    self.gradscaler.scale(loss).backward()
+                                    self.gradscaler.step(self.optimizer)
+                                    self.gradscaler.update()
+                                    self.global_step += 1
+                                else:
+                                    loss.backward()
+                                    self.optimizer.step()
+                                    self.global_step += 1
+
 
                     # update current loss
                     running_loss += loss.item() * len(batch["inputs"])
@@ -420,7 +481,7 @@ class Trainer:
 
         Parameters
         ----------
-        number_of_training_samples
+        number_of_training_samples:
             Number of training samples used during training the network.
         number_of_epochs
             Maximum number of training epochs to perform.
@@ -472,4 +533,3 @@ class Trainer:
         else:
             print('=> No validation phase used')
 
-        print()

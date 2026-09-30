@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python:
 from abc import abstractmethod
 import os
 
@@ -11,7 +11,7 @@ class BaseModel:
     def __init__(self, network, dims, network_parameters={}, trainer=Trainer,
                  parameters_trainer={}):
 
-        self.network = network(dims=dims, **network_parameters).double()
+        self.network = network(dims=dims, **network_parameters)
         self.trainer = trainer(self, **parameters_trainer)
         self.path = None
 

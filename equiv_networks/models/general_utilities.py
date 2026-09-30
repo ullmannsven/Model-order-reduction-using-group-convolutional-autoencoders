@@ -5,7 +5,7 @@ import torch
 
 def apply_decoder(x, model, scaled_data):
     """Performs the forward pass of x through the whole decoder."""
-    decoded = model.network.decode(torch.as_tensor(x, dtype=torch.double, device="cpu"))[0].detach().numpy()
+    decoded = model.network.decode(torch.as_tensor(x, dtype=torch.float32, device="cpu"))[0].detach().numpy()
     if scaled_data:
         decoded = model.scaler.unscale(decoded)
     decoded = model.scaler.prolongate(decoded)
@@ -15,7 +15,7 @@ def apply_decoder(x, model, scaled_data):
 def get_jacobian(function, x, model, scaled_data):
     # """Computes the Jacobian of function with respect to the inputs at point x."""
     
-    x = torch.as_tensor(x, dtype=torch.double, device="cpu")
+    x = torch.as_tensor(x, dtype=torch.float32, device="cpu")
     x.requires_grad_(True)
 
     def f_latent(x):
