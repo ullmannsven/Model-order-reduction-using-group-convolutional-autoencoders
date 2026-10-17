@@ -29,7 +29,7 @@ class Scaler:
 
     def scale(self, x):
         """Scale physical (q, p) data to [0, 1]."""
-        #scaled = torch.empty_like(x, dtype=torch.double)
+        #scaled = torch.empty_like(x, dtype=torch.float32)
         scaled = np.empty_like(x)
         if x.ndim == 3:
             q, p = x[0, :, :], x[1, :, :]
@@ -45,7 +45,7 @@ class Scaler:
 
     def unscale(self, x):
         """Unscale from [0, 1] back to physical (q, p)."""
-        #unscaled = torch.empty_like(x, dtype=torch.double)
+        #unscaled = torch.empty_like(x, dtype=torch.float32)
         unscaled = np.empty_like(x)
         if x.ndim == 3:
             q, p = x[0, :, :], x[1, :, :]

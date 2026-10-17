@@ -1,0 +1,24 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mor-gcnn-autoencoders"
+version = "0.1.0"
+description = "Model order reduction using group convolutional autoencoders."
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "torch",
+    #"escnn",
+    "pymor",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["equiv_networks*"]
