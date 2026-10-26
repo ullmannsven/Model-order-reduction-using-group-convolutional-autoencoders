@@ -33,6 +33,8 @@ mlruns/
 # Data / models (adjust as needed)
 checkpoints/
 snapshots_grid/
+scaling/
+network_parameters/
 GCNN_tests/
 new_wave/
 pdes/
